@@ -103,7 +103,8 @@
   }
 
   .dark body,
-  body.dark {
+  body.dark,
+  .dark {
     background: linear-gradient(180deg, hsl(225 30% 4%) 0%, hsl(228 40% 8%) 100%);
   }
 }

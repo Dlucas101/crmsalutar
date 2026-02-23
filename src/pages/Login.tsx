@@ -63,10 +63,10 @@ export default function Login() {
             <Zap className="h-10 w-10 text-primary" />
           </div>
           <h1 className="text-2xl font-bold neon-glow text-foreground">
-            DevCRM
+            CRM
           </h1>
           <p className="text-muted-foreground text-sm">
-            {isSignUp ? "Crie sua conta" : "Acesse o CRM da sua software house"}
+            {isSignUp ? "Crie sua conta" : "Acesse seu CRM"}
           </p>
         </CardHeader>
         <CardContent>
