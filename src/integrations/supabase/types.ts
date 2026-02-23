@@ -88,6 +88,24 @@ export type Database = {
           },
         ]
       }
+      custom_roles: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nome: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           assigned_user_id: string | null
@@ -95,11 +113,13 @@ export type Database = {
           created_at: string
           email: string | null
           empresa: string | null
+          endereco: string | null
           id: string
           interesse: string | null
           nome: string
           notas: string | null
           origem: string | null
+          responsible_id: string | null
           status: string
           updated_at: string
           whatsapp: string | null
@@ -110,11 +130,13 @@ export type Database = {
           created_at?: string
           email?: string | null
           empresa?: string | null
+          endereco?: string | null
           id?: string
           interesse?: string | null
           nome: string
           notas?: string | null
           origem?: string | null
+          responsible_id?: string | null
           status?: string
           updated_at?: string
           whatsapp?: string | null
@@ -125,11 +147,13 @@ export type Database = {
           created_at?: string
           email?: string | null
           empresa?: string | null
+          endereco?: string | null
           id?: string
           interesse?: string | null
           nome?: string
           notas?: string | null
           origem?: string | null
+          responsible_id?: string | null
           status?: string
           updated_at?: string
           whatsapp?: string | null
@@ -173,6 +197,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          custom_role_id: string | null
           id: string
           nome: string
           updated_at: string
@@ -180,6 +205,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          custom_role_id?: string | null
           id: string
           nome?: string
           updated_at?: string
@@ -187,11 +213,20 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          custom_role_id?: string | null
           id?: string
           nome?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_custom_role_id_fkey"
+            columns: ["custom_role_id"]
+            isOneToOne: false
+            referencedRelation: "custom_roles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       projects: {
         Row: {

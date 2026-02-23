@@ -6,6 +6,8 @@ import {
   CheckSquare,
   LogOut,
   Zap,
+  FileSpreadsheet,
+  UserCog,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,6 +39,8 @@ const navItems = [
   { title: "Clientes", url: "/clientes", icon: Users },
   { title: "Projetos", url: "/projetos", icon: FolderKanban },
   { title: "Minhas Tarefas", url: "/tarefas", icon: CheckSquare },
+  { title: "Membros", url: "/membros", icon: UserCog },
+  { title: "Relatórios", url: "/relatorios", icon: FileSpreadsheet },
 ];
 
 export function AppSidebar() {
@@ -47,7 +51,7 @@ export function AppSidebar() {
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-2 animate-float">
           <Zap className="h-7 w-7 text-primary" />
-          <span className="text-lg font-bold neon-glow text-foreground">DevCRM</span>
+          <span className="text-lg font-bold neon-glow text-foreground">CRM</span>
         </div>
       </SidebarHeader>
 

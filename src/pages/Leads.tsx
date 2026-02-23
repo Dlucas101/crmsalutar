@@ -8,9 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Building2, Phone, Mail } from "lucide-react";
+import { Plus, Building2, Phone, Mail, MapPin, User } from "lucide-react";
 import { toast } from "sonner";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+
+interface Profile {
+  id: string;
+  nome: string;
+}
 
 const PIPELINE_COLUMNS = [
   { key: "novo", label: "Novo", color: "border-neon-cyan/30" },
@@ -22,26 +27,24 @@ const PIPELINE_COLUMNS = [
   { key: "perdido", label: "Perdido", color: "border-destructive/30" },
 ];
 
-const INTERESSES = [
-  { value: "site", label: "Site" },
-  { value: "sistema", label: "Sistema" },
-  { value: "app", label: "Aplicativo" },
-  { value: "suporte", label: "Suporte" },
-  { value: "consultoria", label: "Consultoria" },
-];
-
 export default function Leads() {
   const { user } = useAuth();
   const [leads, setLeads] = useState<Tables<"leads">[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState<Partial<TablesInsert<"leads">>>({});
+  const [formData, setFormData] = useState<Partial<TablesInsert<"leads"> & { endereco?: string; responsible_id?: string }>>({});
 
   const fetchLeads = async () => {
     const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
     if (data) setLeads(data);
   };
 
-  useEffect(() => { fetchLeads(); }, []);
+  const fetchProfiles = async () => {
+    const { data } = await supabase.from("profiles").select("id, nome");
+    if (data) setProfiles(data);
+  };
+
+  useEffect(() => { fetchLeads(); fetchProfiles(); }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,14 +56,15 @@ export default function Leads() {
     const { error } = await supabase.from("leads").insert({
       nome: formData.nome.trim(),
       empresa: formData.empresa?.trim() || null,
-      cargo: formData.cargo?.trim() || null,
+      endereco: (formData as any).endereco?.trim() || null,
       whatsapp: formData.whatsapp?.trim() || null,
       email: formData.email?.trim() || null,
-      interesse: formData.interesse || null,
+      interesse: formData.interesse?.trim() || null,
       origem: formData.origem?.trim() || null,
       notas: formData.notas?.trim() || null,
       assigned_user_id: user?.id || null,
-    });
+      responsible_id: (formData as any).responsible_id || null,
+    } as any);
 
     if (error) {
       toast.error("Erro ao criar lead");
@@ -112,8 +116,8 @@ export default function Leads() {
                   <Input value={formData.empresa || ""} onChange={(e) => setFormData({ ...formData, empresa: e.target.value })} maxLength={100} className="bg-secondary/50" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Cargo</Label>
-                  <Input value={formData.cargo || ""} onChange={(e) => setFormData({ ...formData, cargo: e.target.value })} maxLength={100} className="bg-secondary/50" />
+                  <Label>Endereço</Label>
+                  <Input value={(formData as any).endereco || ""} onChange={(e) => setFormData({ ...formData, endereco: e.target.value } as any)} maxLength={200} className="bg-secondary/50" />
                 </div>
                 <div className="space-y-2">
                   <Label>WhatsApp</Label>
@@ -125,10 +129,14 @@ export default function Leads() {
                 </div>
                 <div className="space-y-2">
                   <Label>Interesse</Label>
-                  <Select value={formData.interesse || ""} onValueChange={(v) => setFormData({ ...formData, interesse: v })}>
-                    <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <Input value={formData.interesse || ""} onChange={(e) => setFormData({ ...formData, interesse: e.target.value })} placeholder="Ex: Site, Sistema, App..." maxLength={100} className="bg-secondary/50" />
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <Label>Responsável</Label>
+                  <Select value={(formData as any).responsible_id || ""} onValueChange={(v) => setFormData({ ...formData, responsible_id: v } as any)}>
+                    <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Selecionar responsável" /></SelectTrigger>
                     <SelectContent>
-                      {INTERESSES.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
+                      {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -180,6 +188,12 @@ export default function Leads() {
                         <span className="inline-block text-[10px] font-medium chip-media rounded-full px-2 py-0.5">
                           {lead.interesse}
                         </span>
+                      )}
+                      {(lead as any).responsible_id && (
+                        <div className="flex items-center gap-1 text-xs text-neon-cyan font-medium">
+                          <User className="h-3 w-3" />
+                          <span className="truncate">{profiles.find((p) => p.id === (lead as any).responsible_id)?.nome || "—"}</span>
+                        </div>
                       )}
                       {lead.whatsapp && (
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
