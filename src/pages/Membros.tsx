@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, UserPlus, Tag, Users } from "lucide-react";
+import { Tag, Users, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 interface Profile {
@@ -34,6 +34,8 @@ export default function Membros() {
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
   const [newRoleName, setNewRoleName] = useState("");
   const [openRole, setOpenRole] = useState(false);
+  const [openMember, setOpenMember] = useState(false);
+  const [memberForm, setMemberForm] = useState({ nome: "", email: "", password: "" });
 
   const isAdmin = role === "admin";
 
@@ -62,6 +64,37 @@ export default function Membros() {
     setNewRoleName("");
     setOpenRole(false);
     fetchAll();
+  };
+
+  const createMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!memberForm.nome.trim() || !memberForm.email.trim() || !memberForm.password.trim()) {
+      toast.error("Preencha todos os campos");
+      return;
+    }
+    if (memberForm.password.length < 6) {
+      toast.error("Senha deve ter pelo menos 6 caracteres");
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signUp({
+      email: memberForm.email.trim(),
+      password: memberForm.password,
+      options: {
+        data: { nome: memberForm.nome.trim() },
+      },
+    });
+
+    if (error) {
+      toast.error(error.message.includes("already") ? "Email já cadastrado" : "Erro ao criar membro: " + error.message);
+      return;
+    }
+
+    toast.success("Membro criado! Um email de confirmação foi enviado.");
+    setMemberForm({ nome: "", email: "", password: "" });
+    setOpenMember(false);
+    // Profile will be created automatically via trigger
+    setTimeout(() => fetchAll(), 2000);
   };
 
   const updateMemberRole = async (profileId: string, customRoleId: string) => {
@@ -94,40 +127,94 @@ export default function Membros() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold neon-glow">Membros</h1>
           <p className="text-muted-foreground text-sm mt-1">{profiles.length} membros</p>
         </div>
         {isAdmin && (
-          <Dialog open={openRole} onOpenChange={setOpenRole}>
-            <DialogTrigger asChild>
-              <Button className="gradient-accent text-primary-foreground font-semibold">
-                <Tag className="h-4 w-4 mr-2" /> Nova Função
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="glass-panel border-border max-w-sm">
-              <DialogHeader>
-                <DialogTitle className="neon-glow">Nova Função</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={createCustomRole} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Nome da Função</Label>
-                  <Input
-                    value={newRoleName}
-                    onChange={(e) => setNewRoleName(e.target.value)}
-                    placeholder="Ex: Gerente Comercial"
-                    maxLength={50}
-                    required
-                    className="bg-secondary/50"
-                  />
-                </div>
-                <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">
-                  Criar Função
+          <div className="flex gap-2">
+            <Dialog open={openMember} onOpenChange={setOpenMember}>
+              <DialogTrigger asChild>
+                <Button className="gradient-accent text-primary-foreground font-semibold">
+                  <UserPlus className="h-4 w-4 mr-2" /> Novo Membro
                 </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent className="glass-panel border-border max-w-sm">
+                <DialogHeader>
+                  <DialogTitle className="neon-glow">Novo Membro</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={createMember} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Nome</Label>
+                    <Input
+                      value={memberForm.nome}
+                      onChange={(e) => setMemberForm({ ...memberForm, nome: e.target.value })}
+                      placeholder="Nome completo"
+                      maxLength={100}
+                      required
+                      className="bg-secondary/50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <Input
+                      type="email"
+                      value={memberForm.email}
+                      onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })}
+                      placeholder="email@exemplo.com"
+                      required
+                      className="bg-secondary/50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Senha</Label>
+                    <Input
+                      type="password"
+                      value={memberForm.password}
+                      onChange={(e) => setMemberForm({ ...memberForm, password: e.target.value })}
+                      placeholder="Mínimo 6 caracteres"
+                      minLength={6}
+                      required
+                      className="bg-secondary/50"
+                    />
+                  </div>
+                  <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">
+                    Criar Membro
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={openRole} onOpenChange={setOpenRole}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <Tag className="h-4 w-4 mr-2" /> Nova Função
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="glass-panel border-border max-w-sm">
+                <DialogHeader>
+                  <DialogTitle className="neon-glow">Nova Função</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={createCustomRole} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Nome da Função</Label>
+                    <Input
+                      value={newRoleName}
+                      onChange={(e) => setNewRoleName(e.target.value)}
+                      placeholder="Ex: Gerente Comercial"
+                      maxLength={50}
+                      required
+                      className="bg-secondary/50"
+                    />
+                  </div>
+                  <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">
+                    Criar Função
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
         )}
       </div>
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
-import { Target, Users, FolderKanban, CheckSquare, AlertTriangle } from "lucide-react";
+import { Target, Users, FolderKanban, CheckSquare, AlertTriangle, TrendingUp, Clock, BarChart3 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 interface Stats {
@@ -10,6 +10,11 @@ interface Stats {
   projects: number;
   tasksOpen: number;
   tasksOverdue: number;
+  leadsThisMonth: number;
+  leadsWon: number;
+  leadsLost: number;
+  tasksDone: number;
+  projectsActive: number;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -22,39 +27,72 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function Dashboard() {
   const { profile, role } = useAuth();
-  const [stats, setStats] = useState<Stats>({ leads: 0, clients: 0, projects: 0, tasksOpen: 0, tasksOverdue: 0 });
+  const [stats, setStats] = useState<Stats>({
+    leads: 0, clients: 0, projects: 0, tasksOpen: 0, tasksOverdue: 0,
+    leadsThisMonth: 0, leadsWon: 0, leadsLost: 0, tasksDone: 0, projectsActive: 0,
+  });
 
   useEffect(() => {
     const fetchStats = async () => {
-      const [leadsRes, clientsRes, projectsRes, tasksRes] = await Promise.all([
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+      const [leadsRes, clientsRes, projectsRes, tasksOpenRes, leadsMonthRes, leadsWonRes, leadsLostRes, tasksDoneRes, projectsActiveRes] = await Promise.all([
         supabase.from("leads").select("*", { count: "exact", head: true }),
         supabase.from("clients").select("*", { count: "exact", head: true }),
-        supabase.from("projects").select("*", { count: "exact", head: true }).neq("status", "entregue"),
+        supabase.from("projects").select("*", { count: "exact", head: true }),
         supabase.from("tasks").select("*", { count: "exact", head: true }).neq("status", "concluido"),
+        supabase.from("leads").select("*", { count: "exact", head: true }).gte("created_at", startOfMonth),
+        supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "fechado_ganho"),
+        supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "perdido"),
+        supabase.from("tasks").select("*", { count: "exact", head: true }).eq("status", "concluido"),
+        supabase.from("projects").select("*", { count: "exact", head: true }).neq("status", "entregue"),
       ]);
 
       const { count: overdueCount } = await supabase
         .from("tasks")
         .select("*", { count: "exact", head: true })
         .neq("status", "concluido")
-        .lt("due_date", new Date().toISOString());
+        .lt("due_date", now.toISOString());
 
       setStats({
         leads: leadsRes.count || 0,
         clients: clientsRes.count || 0,
         projects: projectsRes.count || 0,
-        tasksOpen: tasksRes.count || 0,
+        tasksOpen: tasksOpenRes.count || 0,
         tasksOverdue: overdueCount || 0,
+        leadsThisMonth: leadsMonthRes.count || 0,
+        leadsWon: leadsWonRes.count || 0,
+        leadsLost: leadsLostRes.count || 0,
+        tasksDone: tasksDoneRes.count || 0,
+        projectsActive: projectsActiveRes.count || 0,
       });
     };
     fetchStats();
+
+    // Refresh every 30s for real-time feel
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
   }, []);
 
-  const cards = [
-    { title: "Leads", value: stats.leads, icon: Target, color: "text-neon-cyan" },
-    { title: "Clientes", value: stats.clients, icon: Users, color: "text-neon-purple" },
-    { title: "Projetos Ativos", value: stats.projects, icon: FolderKanban, color: "text-neon-green" },
-    { title: "Tarefas Abertas", value: stats.tasksOpen, icon: CheckSquare, color: "text-neon-orange" },
+  const conversionRate = stats.leads > 0 ? ((stats.leadsWon / stats.leads) * 100).toFixed(1) : "0";
+  const taskCompletionRate = (stats.tasksOpen + stats.tasksDone) > 0
+    ? ((stats.tasksDone / (stats.tasksOpen + stats.tasksDone)) * 100).toFixed(1) : "0";
+
+  const mainCards = [
+    { title: "Total de Leads", value: stats.leads, icon: Target, color: "text-cyan-400" },
+    { title: "Clientes", value: stats.clients, icon: Users, color: "text-purple-400" },
+    { title: "Projetos Ativos", value: stats.projectsActive, icon: FolderKanban, color: "text-green-400" },
+    { title: "Tarefas Abertas", value: stats.tasksOpen, icon: CheckSquare, color: "text-orange-400" },
+  ];
+
+  const secondaryCards = [
+    { title: "Leads este mês", value: stats.leadsThisMonth, icon: TrendingUp, color: "text-cyan-400" },
+    { title: "Leads Ganhos", value: stats.leadsWon, icon: Target, color: "text-green-400" },
+    { title: "Leads Perdidos", value: stats.leadsLost, icon: Target, color: "text-destructive" },
+    { title: "Tarefas Concluídas", value: stats.tasksDone, icon: CheckSquare, color: "text-green-400" },
+    { title: "Taxa de Conversão", value: `${conversionRate}%`, icon: BarChart3, color: "text-primary" },
+    { title: "Conclusão de Tarefas", value: `${taskCompletionRate}%`, icon: Clock, color: "text-primary" },
   ];
 
   return (
@@ -69,7 +107,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {cards.map((card) => (
+        {mainCards.map((card) => (
           <Card key={card.title} className="glass-panel neon-border">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -79,6 +117,18 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold text-foreground">{card.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {secondaryCards.map((card) => (
+          <Card key={card.title} className="glass-panel neon-border">
+            <CardContent className="p-4 text-center space-y-1">
+              <card.icon className={`h-4 w-4 mx-auto ${card.color}`} />
+              <p className="text-xl font-bold text-foreground">{card.value}</p>
+              <p className="text-[10px] text-muted-foreground leading-tight">{card.title}</p>
             </CardContent>
           </Card>
         ))}
