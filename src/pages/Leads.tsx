@@ -33,6 +33,7 @@ export default function Leads() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState<Partial<TablesInsert<"leads"> & { endereco?: string; responsible_id?: string }>>({});
+  const [filterResponsible, setFilterResponsible] = useState<string>("all");
 
   const fetchLeads = async () => {
     const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
@@ -87,16 +88,33 @@ export default function Leads() {
     fetchLeads();
   };
 
-  const getCountByStatus = (status: string) => leads.filter((l) => l.status === status).length;
+  const getCountByStatus = (status: string) => filteredLeads.filter((l) => l.status === status).length;
+
+  const filteredLeads = filterResponsible === "all"
+    ? leads
+    : filterResponsible === "none"
+      ? leads.filter((l) => !(l as any).responsible_id)
+      : leads.filter((l) => (l as any).responsible_id === filterResponsible);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold neon-glow">Leads</h1>
-          <p className="text-muted-foreground text-sm mt-1">{leads.length} leads no funil</p>
+          <p className="text-muted-foreground text-sm mt-1">{filteredLeads.length} leads no funil</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <div className="flex items-center gap-3">
+          <Select value={filterResponsible} onValueChange={setFilterResponsible}>
+            <SelectTrigger className="h-9 w-44 text-xs bg-secondary/50">
+              <SelectValue placeholder="Filtrar responsável" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="none">Sem responsável</SelectItem>
+              {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="gradient-accent text-primary-foreground font-semibold">
               <Plus className="h-4 w-4 mr-2" /> Novo Lead
@@ -156,6 +174,7 @@ export default function Leads() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Status summary cards */}
@@ -172,7 +191,7 @@ export default function Leads() {
 
       {/* Leads list */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {leads.map((lead) => {
+        {filteredLeads.map((lead) => {
           const status = STATUS_LABELS[lead.status] || { label: lead.status, color: "bg-secondary text-muted-foreground" };
           return (
             <Card key={lead.id} className="glass-panel neon-border hover:border-primary/30 transition-colors">
@@ -233,7 +252,7 @@ export default function Leads() {
         })}
       </div>
 
-      {leads.length === 0 && (
+      {filteredLeads.length === 0 && (
         <Card className="glass-panel neon-border">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <Plus className="h-12 w-12 text-muted-foreground mb-4" />
