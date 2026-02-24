@@ -3,16 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, FileSpreadsheet, Target, Users, FolderKanban, CheckSquare } from "lucide-react";
+import { Download, FileSpreadsheet, Target, Users, CheckSquare } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
-type ReportType = "leads" | "clients" | "projects" | "tasks";
+type ReportType = "leads" | "clients" | "tasks";
 
 const REPORT_OPTIONS: { value: ReportType; label: string; icon: typeof Target }[] = [
   { value: "leads", label: "Leads", icon: Target },
   { value: "clients", label: "Clientes", icon: Users },
-  { value: "projects", label: "Projetos", icon: FolderKanban },
   { value: "tasks", label: "Tarefas", icon: CheckSquare },
 ];
 
@@ -49,9 +48,6 @@ export default function Relatorios() {
         break;
       case "clients":
         result = await supabase.from("clients").select("*").order("created_at", { ascending: false });
-        break;
-      case "projects":
-        result = await supabase.from("projects").select("*").order("created_at", { ascending: false });
         break;
       case "tasks":
         result = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
@@ -96,17 +92,6 @@ export default function Relatorios() {
           WhatsApp: c.whatsapp || "",
           Endereço: c.endereco || "",
           "Criado em": formatDate(c.created_at),
-        }));
-        break;
-      case "projects":
-        rows = data.map((p: any) => ({
-          Nome: p.nome,
-          Descrição: p.descricao || "",
-          Status: STATUS_LABELS[p.status] || p.status,
-          Prioridade: p.prioridade || "",
-          "Data Início": formatDate(p.start_date),
-          "Data Fim": formatDate(p.due_date),
-          "Criado em": formatDate(p.created_at),
         }));
         break;
       case "tasks":
@@ -197,14 +182,6 @@ export default function Relatorios() {
                         <th className="text-left py-2 px-3 text-muted-foreground font-medium">Data</th>
                       </>
                     )}
-                    {reportType === "projects" && (
-                      <>
-                        <th className="text-left py-2 px-3 text-muted-foreground font-medium">Nome</th>
-                        <th className="text-left py-2 px-3 text-muted-foreground font-medium">Status</th>
-                        <th className="text-left py-2 px-3 text-muted-foreground font-medium">Prioridade</th>
-                        <th className="text-left py-2 px-3 text-muted-foreground font-medium">Prazo</th>
-                      </>
-                    )}
                     {reportType === "tasks" && (
                       <>
                         <th className="text-left py-2 px-3 text-muted-foreground font-medium">Título</th>
@@ -233,14 +210,6 @@ export default function Relatorios() {
                           <td className="py-2 px-3 text-muted-foreground">{item.email || "—"}</td>
                           <td className="py-2 px-3 text-muted-foreground">{item.whatsapp || "—"}</td>
                           <td className="py-2 px-3 text-muted-foreground">{formatDate(item.created_at)}</td>
-                        </>
-                      )}
-                      {reportType === "projects" && (
-                        <>
-                          <td className="py-2 px-3 text-foreground">{item.nome}</td>
-                          <td className="py-2 px-3"><span className="chip-media text-[10px] rounded-full px-2 py-0.5">{STATUS_LABELS[item.status] || item.status}</span></td>
-                          <td className="py-2 px-3 text-muted-foreground">{item.prioridade || "—"}</td>
-                          <td className="py-2 px-3 text-muted-foreground">{formatDate(item.due_date)}</td>
                         </>
                       )}
                       {reportType === "tasks" && (
