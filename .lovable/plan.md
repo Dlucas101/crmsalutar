@@ -1,122 +1,99 @@
 
 
-# CRM Software House — Plano MVP
+## Reformulação da Tela de Tarefas e Automações
 
-## Visão Geral
-CRM interno para software house com visual **neon-futurista dark mode**, backend Supabase (Postgres + Auth + Edge Functions), ~6 usuários com permissões por role. Idioma: pt-BR.
+### Resumo
 
----
-
-## Fase 1: Fundação (Auth + Tema + Layout)
-
-### Tema Neon-Futurista
-- Aplicar o design system neon (dark mode padrão) com as cores fornecidas: cyan, pink, purple
-- Background gradiente escuro, cards com glassmorphism, glow effects
-- Tipografia moderna (Inter), chips de status coloridos, inputs com brilho neon no foco
-
-### Layout Principal
-- **Sidebar lateral** com logo animado (float), menu de navegação com ícones, indicador de role do usuário
-- **Topbar** com busca global, sino de notificações e avatar do usuário logado
-- Layout responsivo (sidebar colapsável em mobile)
-
-### Autenticação & Roles
-- Login com email + senha via Supabase Auth
-- Tabela `profiles` com campo `role` (Admin, Gestor, Suporte, Desenvolvedor, Vendas)
-- Row-Level Security (RLS) para que cada usuário veja apenas o que lhe é atribuído
-- Admin vê tudo, Gestor tem visão ampliada, demais veem apenas seus itens
+Substituir o layout Kanban por uma lista simples com duas abas ("Pendentes" e "Concluídas"), e alterar as automações do banco de dados para criar tarefas específicas vinculadas ao lead em dois momentos: quando o lead é criado (status "novo") e quando muda para "Ganho".
 
 ---
 
-## Fase 2: Módulo de Leads + Pipeline
+### 1. Alterar o trigger do banco de dados
 
-### Cadastro de Leads
-- Formulário completo: nome, empresa, cargo, WhatsApp, email, interesse (site/sistema/app/suporte/consultoria), origem, notas
-- Validação de campos obrigatórios
+Atualizar a função `handle_lead_ganho` e criar um novo trigger para INSERT na tabela leads:
 
-### Pipeline / Funil (Kanban)
-- Colunas: Novo → Primeiro Contato → Diagnóstico/Reunião → Proposta Enviada → Negociação → Fechado (Ganho) → Perdido
-- Drag & drop para mover leads entre etapas
-- Cards com nome, empresa, interesse e prioridade visual
+**Novo trigger - Quando lead é criado (status "novo"):**
+- Criar 1 tarefa: **"Visita a cliente agendada?"**
+- Vinculada ao lead via `lead_id`
+- Atribuída ao `responsible_id` do lead
 
-### Timeline de Atividade
-- Histórico cronológico de ações por lead (criação, mudanças de status, comentários)
-- Registro automático no activity log
-
----
-
-## Fase 3: Kanban Pessoal + Tarefas
-
-### Kanban por Usuário
-- Cada usuário vê **apenas suas tarefas** atribuídas
-- Colunas: A Fazer → Em Progresso → Em Revisão → Concluído
-- Drag & drop entre colunas
-
-### Tarefas
-- Campos: título, descrição, prioridade (Baixa/Média/Alta/Urgente), status, prazo, projeto/lead vinculado, estimativa de tempo
-- Chips coloridos por prioridade (neon gradient)
-- Indicador visual de tarefas vencidas (overdue)
+**Trigger atualizado - Quando lead muda para "fechado_ganho":**
+- Manter a criação do cliente (como já funciona)
+- Remover as 4 tarefas antigas
+- Criar 3 novas tarefas vinculadas ao lead:
+  1. **"Sistema instalado e configurado?"**
+  2. **"1° Treinamento agendado?"**
+  3. **"2° Treinamento agendado?"**
 
 ---
 
-## Fase 4: Dashboard do Gestor (KPIs)
+### 2. Redesenhar a tela de Tarefas (`src/pages/Tarefas.tsx`)
 
-### Métricas Visuais
-- Leads no período e taxa de conversão
-- Projetos ativos e clientes ativos
-- Tickets abertos vs resolvidos
-- Tarefas por usuário (gráfico de barras)
+Substituir o Kanban por uma interface com duas abas:
 
-### Alertas
-- Tabela de tarefas overdue
-- SLAs violados em destaque
-- Gráficos com Recharts (já instalado) no estilo neon
+- **Aba "Pendentes"**: lista de tarefas com status diferente de "concluido"
+- **Aba "Concluídas"**: lista de tarefas com status "concluido"
 
----
-
-## Fase 5: Automações com Edge Functions
-
-### Regra A — Novo Lead Criado
-- Edge Function acionada por database trigger
-- Atribui lead ao vendedor (round-robin)
-- Cria tarefa "Primeiro contato" com prazo de 24h
-- Cria notificação para o vendedor
-
-### Regra C — Lead Fechado (Ganho)
-- Converte lead → cliente (copia dados automaticamente)
-- Cria projeto padrão vinculado ao cliente
-- Gera tarefas padrão: Levantamento de Requisitos, Planejamento, Desenvolvimento, Testes, Deploy
-- Notifica equipe (Dev + Suporte)
-
-### Notificações em Tempo Real
-- Tabela `notifications` com Supabase Realtime
-- Sino na topbar com contador e dropdown de notificações não lidas
+Cada tarefa mostrará:
+- Titulo da tarefa
+- Nome do lead vinculado (buscar via join com tabela leads)
+- Botao "Feito" (muda status para "concluido") na aba Pendentes
+- Botao "Desfazer" (volta para "a_fazer") na aba Concluidas
 
 ---
 
-## Banco de Dados (Supabase/Postgres)
+### Detalhes Tecnico
 
-### Tabelas Principais
-- `profiles` (id, role, nome, avatar)
-- `leads` (nome, empresa, contato, origem, interesse, status, assigned_user_id)
-- `clients` (nome, cnpj_cpf, contatos, convertido de lead)
-- `projects` (client_id, nome, status, prioridade, datas)
-- `tasks` (project_id, assigned_user_id, título, status, prioridade, prazo, time_estimate)
-- `activities` (user_id, action_type, target_type, target_id, dados, timestamp)
-- `notifications` (user_id, tipo, mensagem, lida, created_at)
+**Migração SQL:**
 
-### Segurança
-- RLS em todas as tabelas
-- Admin: acesso total
-- Gestor: leitura ampla + escrita limitada
-- Demais: apenas registros atribuídos a eles
+```sql
+-- 1. Trigger para lead novo (INSERT)
+CREATE OR REPLACE FUNCTION public.handle_lead_novo()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO 'public' AS $function$
+BEGIN
+  IF NEW.status = 'novo' THEN
+    INSERT INTO public.tasks (title, lead_id, status, priority, assigned_user_id)
+    VALUES ('Visita a cliente agendada?', NEW.id, 'a_fazer', 'alta', NEW.responsible_id);
+  END IF;
+  RETURN NEW;
+END;
+$function$;
 
----
+DROP TRIGGER IF EXISTS on_lead_novo ON public.leads;
+CREATE TRIGGER on_lead_novo
+  AFTER INSERT ON public.leads
+  FOR EACH ROW EXECUTE FUNCTION public.handle_lead_novo();
 
-## Módulos para Fases Futuras (pós-MVP)
-- **Gestão de Clientes** completa (perfil, contratos, histórico)
-- **Propostas/Negócios** (templates, envio, follow-up automático — Regra B)
-- **Projetos completos** (Kanban de projeto, timesheet, milestones)
-- **Suporte/Tickets** com SLA automático e escalonamento (Regra D)
-- **Integrações** (WhatsApp, Email SMTP, gateway de pagamentos)
-- **Light mode** toggle
+-- 2. Atualizar trigger de ganho (remover tarefas antigas, criar novas)
+CREATE OR REPLACE FUNCTION public.handle_lead_ganho()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO 'public' AS $function$
+DECLARE
+  new_client_id uuid;
+BEGIN
+  IF NEW.status = 'fechado_ganho' AND (OLD.status IS DISTINCT FROM 'fechado_ganho') THEN
+    SELECT id INTO new_client_id FROM public.clients WHERE lead_id = NEW.id;
+    IF new_client_id IS NULL THEN
+      INSERT INTO public.clients (nome, email, whatsapp, endereco, lead_id)
+      VALUES (NEW.nome, NEW.email, NEW.whatsapp, NEW.endereco, NEW.id)
+      RETURNING id INTO new_client_id;
+    END IF;
+
+    INSERT INTO public.tasks (title, lead_id, status, priority, assigned_user_id) VALUES
+      ('Sistema instalado e configurado?', NEW.id, 'a_fazer', 'alta', NEW.responsible_id),
+      ('1° Treinamento agendado?', NEW.id, 'a_fazer', 'alta', NEW.responsible_id),
+      ('2° Treinamento agendado?', NEW.id, 'a_fazer', 'media', NEW.responsible_id);
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+```
+
+**Frontend - `src/pages/Tarefas.tsx`:**
+- Remover layout Kanban
+- Usar componente `Tabs` (Pendentes / Concluidas)
+- Buscar tarefas com join: `tasks` + `leads(nome)` para mostrar o nome do lead
+- Botao "Feito" chama update de status para "concluido"
+- Botao "Desfazer" volta para "a_fazer"
 
