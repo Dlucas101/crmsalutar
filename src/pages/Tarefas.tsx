@@ -5,38 +5,54 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, Undo2 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
+interface Profile {
+  id: string;
+  nome: string;
+}
+
 type TaskWithLead = Tables<"tasks"> & {
-  leads: { nome: string } | null;
+  leads: { nome: string; responsible_id: string | null } | null;
 };
 
 export default function Tarefas() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<TaskWithLead[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [filterResponsible, setFilterResponsible] = useState<string>("all");
 
   const fetchTasks = async () => {
-    if (!user) return;
     const { data } = await supabase
       .from("tasks")
-      .select("*, leads(nome)")
-      .eq("assigned_user_id", user.id)
+      .select("*, leads(nome, responsible_id)")
       .order("created_at", { ascending: false });
     if (data) setTasks(data as TaskWithLead[]);
   };
 
+  const fetchProfiles = async () => {
+    const { data } = await supabase.from("profiles").select("id, nome");
+    if (data) setProfiles(data);
+  };
+
   useEffect(() => {
     fetchTasks();
-  }, [user]);
+    fetchProfiles();
+  }, []);
 
   const updateStatus = async (taskId: string, newStatus: string) => {
     await supabase.from("tasks").update({ status: newStatus }).eq("id", taskId);
     fetchTasks();
   };
 
-  const pendentes = tasks.filter((t) => t.status !== "concluido");
-  const concluidas = tasks.filter((t) => t.status === "concluido");
+  const filtered = filterResponsible === "all"
+    ? tasks
+    : tasks.filter((t) => t.leads?.responsible_id === filterResponsible);
+
+  const pendentes = filtered.filter((t) => t.status !== "concluido");
+  const concluidas = filtered.filter((t) => t.status === "concluido");
 
   const TaskCard = ({ task, showDone }: { task: TaskWithLead; showDone: boolean }) => (
     <Card className="neon-border hover:border-primary/30 transition-colors">
@@ -76,11 +92,22 @@ export default function Tarefas() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold neon-glow">Minhas Tarefas</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {pendentes.length} tarefas pendentes
-        </p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold neon-glow">Minhas Tarefas</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {pendentes.length} tarefas pendentes
+          </p>
+        </div>
+        <Select value={filterResponsible} onValueChange={setFilterResponsible}>
+          <SelectTrigger className="h-9 w-44 text-xs bg-secondary/50">
+            <SelectValue placeholder="Filtrar responsável" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       <Tabs defaultValue="pendentes">

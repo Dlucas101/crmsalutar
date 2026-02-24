@@ -114,6 +114,7 @@ export type Database = {
           email: string | null
           empresa: string | null
           endereco: string | null
+          equipamento: string | null
           id: string
           interesse: string | null
           nome: string
@@ -131,6 +132,7 @@ export type Database = {
           email?: string | null
           empresa?: string | null
           endereco?: string | null
+          equipamento?: string | null
           id?: string
           interesse?: string | null
           nome: string
@@ -148,6 +150,7 @@ export type Database = {
           email?: string | null
           empresa?: string | null
           endereco?: string | null
+          equipamento?: string | null
           id?: string
           interesse?: string | null
           nome?: string
