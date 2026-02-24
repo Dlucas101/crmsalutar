@@ -10,7 +10,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Leads from "./pages/Leads";
 import Clientes from "./pages/Clientes";
-import Projetos from "./pages/Projetos";
+
 import Tarefas from "./pages/Tarefas";
 import Membros from "./pages/Membros";
 import Relatorios from "./pages/Relatorios";
@@ -46,7 +46,7 @@ const App = () => (
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
               <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
-              <Route path="/projetos" element={<ProtectedRoute><Projetos /></ProtectedRoute>} />
+              
               <Route path="/tarefas" element={<ProtectedRoute><Tarefas /></ProtectedRoute>} />
               <Route path="/membros" element={<ProtectedRoute><Membros /></ProtectedRoute>} />
               <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />

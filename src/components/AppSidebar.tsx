@@ -2,7 +2,7 @@ import {
   LayoutDashboard,
   Users,
   Target,
-  FolderKanban,
+  
   CheckSquare,
   LogOut,
   Zap,
@@ -37,7 +37,7 @@ const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Leads", url: "/leads", icon: Target },
   { title: "Clientes", url: "/clientes", icon: Users },
-  { title: "Projetos", url: "/projetos", icon: FolderKanban },
+  
   { title: "Minhas Tarefas", url: "/tarefas", icon: CheckSquare },
   { title: "Membros", url: "/membros", icon: UserCog },
   { title: "Relatórios", url: "/relatorios", icon: FileSpreadsheet },
