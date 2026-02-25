@@ -8,6 +8,7 @@ import {
   Zap,
   FileSpreadsheet,
   UserCog,
+  CalendarDays,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,6 +40,7 @@ const navItems = [
   { title: "Clientes", url: "/clientes", icon: Users },
   
   { title: "Minhas Tarefas", url: "/tarefas", icon: CheckSquare },
+  { title: "Visitas", url: "/visitas", icon: CalendarDays },
   { title: "Membros", url: "/membros", icon: UserCog },
   { title: "Relatórios", url: "/relatorios", icon: FileSpreadsheet },
 ];

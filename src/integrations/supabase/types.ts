@@ -199,6 +199,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          cor: string | null
           created_at: string
           custom_role_id: string | null
           id: string
@@ -207,6 +208,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          cor?: string | null
           created_at?: string
           custom_role_id?: string | null
           id: string
@@ -215,6 +217,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          cor?: string | null
           created_at?: string
           custom_role_id?: string | null
           id?: string
@@ -361,6 +364,66 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      visits: {
+        Row: {
+          client_id: string | null
+          cor: string | null
+          created_at: string
+          descricao: string | null
+          id: string
+          lead_id: string | null
+          member_id: string | null
+          status: string
+          titulo: string
+          updated_at: string
+          visit_date: string
+          visit_end: string | null
+        }
+        Insert: {
+          client_id?: string | null
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          lead_id?: string | null
+          member_id?: string | null
+          status?: string
+          titulo: string
+          updated_at?: string
+          visit_date: string
+          visit_end?: string | null
+        }
+        Update: {
+          client_id?: string | null
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          lead_id?: string | null
+          member_id?: string | null
+          status?: string
+          titulo?: string
+          updated_at?: string
+          visit_date?: string
+          visit_end?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visits_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
