@@ -12,6 +12,7 @@ import Leads from "./pages/Leads";
 import Clientes from "./pages/Clientes";
 
 import Tarefas from "./pages/Tarefas";
+import Visitas from "./pages/Visitas";
 import Membros from "./pages/Membros";
 import Relatorios from "./pages/Relatorios";
 import NotFound from "./pages/NotFound";
@@ -48,6 +49,7 @@ const App = () => (
               <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
               
               <Route path="/tarefas" element={<ProtectedRoute><Tarefas /></ProtectedRoute>} />
+              <Route path="/visitas" element={<ProtectedRoute><Visitas /></ProtectedRoute>} />
               <Route path="/membros" element={<ProtectedRoute><Membros /></ProtectedRoute>} />
               <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />

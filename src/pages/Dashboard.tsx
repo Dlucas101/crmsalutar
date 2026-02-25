@@ -1,20 +1,20 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
-import { Target, Users, FolderKanban, CheckSquare, AlertTriangle, TrendingUp, Clock, BarChart3 } from "lucide-react";
+import { Target, Users, CalendarDays, CheckSquare, AlertTriangle, TrendingUp, Clock, BarChart3 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 interface Stats {
   leads: number;
   clients: number;
-  projects: number;
+  visitsScheduled: number;
   tasksOpen: number;
   tasksOverdue: number;
   leadsThisMonth: number;
   leadsWon: number;
   leadsLost: number;
   tasksDone: number;
-  projectsActive: number;
+  visitsDone: number;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -28,8 +28,8 @@ const ROLE_LABELS: Record<string, string> = {
 export default function Dashboard() {
   const { profile, role } = useAuth();
   const [stats, setStats] = useState<Stats>({
-    leads: 0, clients: 0, projects: 0, tasksOpen: 0, tasksOverdue: 0,
-    leadsThisMonth: 0, leadsWon: 0, leadsLost: 0, tasksDone: 0, projectsActive: 0,
+    leads: 0, clients: 0, visitsScheduled: 0, tasksOpen: 0, tasksOverdue: 0,
+    leadsThisMonth: 0, leadsWon: 0, leadsLost: 0, tasksDone: 0, visitsDone: 0,
   });
 
   useEffect(() => {
@@ -37,16 +37,16 @@ export default function Dashboard() {
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-      const [leadsRes, clientsRes, projectsRes, tasksOpenRes, leadsMonthRes, leadsWonRes, leadsLostRes, tasksDoneRes, projectsActiveRes] = await Promise.all([
+      const [leadsRes, clientsRes, visitsScheduledRes, tasksOpenRes, leadsMonthRes, leadsWonRes, leadsLostRes, tasksDoneRes, visitsDoneRes] = await Promise.all([
         supabase.from("leads").select("*", { count: "exact", head: true }),
         supabase.from("clients").select("*", { count: "exact", head: true }),
-        supabase.from("projects").select("*", { count: "exact", head: true }),
+        supabase.from("visits").select("*", { count: "exact", head: true }).eq("status", "agendado"),
         supabase.from("tasks").select("*", { count: "exact", head: true }).neq("status", "concluido"),
         supabase.from("leads").select("*", { count: "exact", head: true }).gte("created_at", startOfMonth),
         supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "fechado_ganho"),
         supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "perdido"),
         supabase.from("tasks").select("*", { count: "exact", head: true }).eq("status", "concluido"),
-        supabase.from("projects").select("*", { count: "exact", head: true }).neq("status", "entregue"),
+        supabase.from("visits").select("*", { count: "exact", head: true }).eq("status", "concluido"),
       ]);
 
       const { count: overdueCount } = await supabase
@@ -58,14 +58,14 @@ export default function Dashboard() {
       setStats({
         leads: leadsRes.count || 0,
         clients: clientsRes.count || 0,
-        projects: projectsRes.count || 0,
+        visitsScheduled: visitsScheduledRes.count || 0,
         tasksOpen: tasksOpenRes.count || 0,
         tasksOverdue: overdueCount || 0,
         leadsThisMonth: leadsMonthRes.count || 0,
         leadsWon: leadsWonRes.count || 0,
         leadsLost: leadsLostRes.count || 0,
         tasksDone: tasksDoneRes.count || 0,
-        projectsActive: projectsActiveRes.count || 0,
+        visitsDone: visitsDoneRes.count || 0,
       });
     };
     fetchStats();
@@ -82,7 +82,7 @@ export default function Dashboard() {
   const mainCards = [
     { title: "Total de Leads", value: stats.leads, icon: Target, color: "text-cyan-400" },
     { title: "Clientes", value: stats.clients, icon: Users, color: "text-purple-400" },
-    { title: "Projetos Ativos", value: stats.projectsActive, icon: FolderKanban, color: "text-green-400" },
+    { title: "Visitas Agendadas", value: stats.visitsScheduled, icon: CalendarDays, color: "text-green-400" },
     { title: "Tarefas Abertas", value: stats.tasksOpen, icon: CheckSquare, color: "text-orange-400" },
   ];
 
@@ -91,8 +91,8 @@ export default function Dashboard() {
     { title: "Leads Ganhos", value: stats.leadsWon, icon: Target, color: "text-green-400" },
     { title: "Leads Perdidos", value: stats.leadsLost, icon: Target, color: "text-destructive" },
     { title: "Tarefas Concluídas", value: stats.tasksDone, icon: CheckSquare, color: "text-green-400" },
+    { title: "Visitas Concluídas", value: stats.visitsDone, icon: CalendarDays, color: "text-green-400" },
     { title: "Taxa de Conversão", value: `${conversionRate}%`, icon: BarChart3, color: "text-primary" },
-    { title: "Conclusão de Tarefas", value: `${taskCompletionRate}%`, icon: Clock, color: "text-primary" },
   ];
 
   return (
