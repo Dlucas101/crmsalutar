@@ -9,6 +9,7 @@ import {
   FileSpreadsheet,
   UserCog,
   CalendarDays,
+  Trophy,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,6 +42,7 @@ const navItems = [
   
   { title: "Minhas Tarefas", url: "/tarefas", icon: CheckSquare },
   { title: "Visitas", url: "/visitas", icon: CalendarDays },
+  { title: "Metas", url: "/metas", icon: Trophy },
   { title: "Membros", url: "/membros", icon: UserCog },
   { title: "Relatórios", url: "/relatorios", icon: FileSpreadsheet },
 ];
