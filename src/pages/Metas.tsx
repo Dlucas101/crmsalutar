@@ -71,11 +71,7 @@ export default function Metas() {
 
     // Fetch members (non-admin)
     const { data: allMembers } = await supabase.from("profiles").select("id, nome, cor");
-    const { data: roles } = await supabase.from("user_roles").select("user_id, role");
-    
-    const admins = (roles || []).filter((r: any) => r.role === "admin").map((r: any) => r.user_id);
-    setAdminIds(admins);
-    setMembers((allMembers || []).filter((m: any) => !admins.includes(m.id)));
+    setMembers(allMembers || []);
 
     // Fetch leads won in selected month/year
     const startDate = new Date(selectedYear, selectedMonth - 1, 1).toISOString();
