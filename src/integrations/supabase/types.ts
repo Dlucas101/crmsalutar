@@ -123,6 +123,7 @@ export type Database = {
           responsible_id: string | null
           status: string
           updated_at: string
+          valor_contrato: number | null
           whatsapp: string | null
         }
         Insert: {
@@ -141,6 +142,7 @@ export type Database = {
           responsible_id?: string | null
           status?: string
           updated_at?: string
+          valor_contrato?: number | null
           whatsapp?: string | null
         }
         Update: {
@@ -159,7 +161,38 @@ export type Database = {
           responsible_id?: string | null
           status?: string
           updated_at?: string
+          valor_contrato?: number | null
           whatsapp?: string | null
+        }
+        Relationships: []
+      }
+      metas: {
+        Row: {
+          ano: number
+          created_at: string
+          id: string
+          mes: number
+          quantidade_meta: number
+          updated_at: string
+          valor_contrato: number
+        }
+        Insert: {
+          ano: number
+          created_at?: string
+          id?: string
+          mes: number
+          quantidade_meta?: number
+          updated_at?: string
+          valor_contrato?: number
+        }
+        Update: {
+          ano?: number
+          created_at?: string
+          id?: string
+          mes?: number
+          quantidade_meta?: number
+          updated_at?: string
+          valor_contrato?: number
         }
         Relationships: []
       }
