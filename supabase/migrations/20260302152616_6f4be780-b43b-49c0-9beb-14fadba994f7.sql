@@ -1,0 +1,1 @@
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS valor_ate_vencimento numeric DEFAULT 0;
