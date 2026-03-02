@@ -82,7 +82,7 @@ const emptyForm = {
   titulo: "",
   descricao: "",
   visit_date: "",
-  visit_date2: "",
+  visit_date_end: "",
   visit_time: "08:00",
   member_id: "",
   cor: MEMBER_COLORS[0],
@@ -146,19 +146,20 @@ export default function Visitas() {
       toast.error("Preencha título, data e técnico");
       return;
     }
-    const dates = [form.visit_date];
-    if (form.visit_date2.trim()) dates.push(form.visit_date2);
-    const rows = dates.map((d) => ({
+    const startDate = new Date(form.visit_date + "T00:00:00");
+    const endDate = form.visit_date_end.trim() ? new Date(form.visit_date_end + "T00:00:00") : startDate;
+    const allDates = eachDayOfInterval({ start: startDate, end: endDate });
+    const rows = allDates.map((d) => ({
       titulo: form.titulo.trim(),
       descricao: form.descricao.trim() || null,
-      visit_date: `${d}T${form.visit_time}:00`,
+      visit_date: `${format(d, "yyyy-MM-dd")}T${form.visit_time}:00`,
       member_id: form.member_id,
       cor: form.cor,
       status: "agendado",
     }));
     const { error } = await supabase.from("visits").insert(rows);
     if (error) { toast.error("Erro ao criar visita"); return; }
-    toast.success(dates.length > 1 ? `${dates.length} visitas agendadas!` : "Visita agendada!");
+    toast.success(allDates.length > 1 ? `${allDates.length} visitas agendadas!` : "Visita agendada!");
     setForm({ ...emptyForm });
     setOpenNew(false);
     fetchData();
@@ -171,7 +172,7 @@ export default function Visitas() {
       titulo: v.titulo,
       descricao: v.descricao || "",
       visit_date: format(d, "yyyy-MM-dd"),
-      visit_date2: "",
+      visit_date_end: "",
       visit_time: format(d, "HH:mm"),
       member_id: v.member_id || "",
       cor: v.cor || MEMBER_COLORS[0],
@@ -255,8 +256,8 @@ export default function Visitas() {
         </div>
       </div>
       <div className="space-y-2">
-        <Label>Data adicional <span className="text-muted-foreground font-normal">(opcional)</span></Label>
-        <Input type="date" value={f.visit_date2} onChange={(e) => setF({ ...f, visit_date2: e.target.value })} className="bg-secondary/50" />
+        <Label>Data final <span className="text-muted-foreground font-normal">(opcional — cria visitas para todos os dias do período)</span></Label>
+        <Input type="date" value={f.visit_date_end} onChange={(e) => setF({ ...f, visit_date_end: e.target.value })} className="bg-secondary/50" min={f.visit_date || undefined} />
       </div>
       <div className="space-y-2">
         <Label>Técnico</Label>
