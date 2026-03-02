@@ -19,6 +19,7 @@ interface Client {
   lead_id: string | null;
   valor_negociado: number | null;
   valor_custo: number | null;
+  valor_ate_vencimento: number | null;
   responsavel_id: string | null;
   created_at: string;
 }
@@ -33,7 +34,7 @@ export default function Clientes() {
   const [members, setMembers] = useState<Profile[]>([]);
   const [filterMember, setFilterMember] = useState<string>("all");
   const [editClient, setEditClient] = useState<Client | null>(null);
-  const [editValues, setEditValues] = useState({ valor_negociado: "", valor_custo: "" });
+  const [editValues, setEditValues] = useState({ valor_negociado: "", valor_custo: "", valor_ate_vencimento: "" });
 
   const fetchData = async () => {
     const [clientsRes, membersRes] = await Promise.all([
@@ -71,7 +72,8 @@ export default function Clientes() {
   const getValorLiquido = (c: Client) => {
     const neg = Number(c.valor_negociado) || 0;
     const custo = Number(c.valor_custo) || 0;
-    return neg - custo;
+    const venc = Number(c.valor_ate_vencimento) || 0;
+    return neg - custo - venc;
   };
 
   const formatCurrency = (v: number) =>
@@ -82,6 +84,7 @@ export default function Clientes() {
     setEditValues({
       valor_negociado: String(c.valor_negociado || ""),
       valor_custo: String(c.valor_custo || ""),
+      valor_ate_vencimento: String(c.valor_ate_vencimento || ""),
     });
   };
 
@@ -90,6 +93,7 @@ export default function Clientes() {
     const { error } = await supabase.from("clients").update({
       valor_negociado: Number(editValues.valor_negociado) || 0,
       valor_custo: Number(editValues.valor_custo) || 0,
+      valor_ate_vencimento: Number(editValues.valor_ate_vencimento) || 0,
     }).eq("id", editClient.id);
     if (error) { toast.error("Erro ao salvar"); return; }
     toast.success("Valores atualizados!");
@@ -131,6 +135,7 @@ export default function Clientes() {
             const responsavelId = getResponsavelId(client);
             const valorNeg = Number(client.valor_negociado) || 0;
             const valorCusto = Number(client.valor_custo) || 0;
+            const valorVenc = Number(client.valor_ate_vencimento) || 0;
             const valorLiquido = getValorLiquido(client);
             return (
               <Card key={client.id} className="glass-panel neon-border hover:border-primary/30 transition-colors">
@@ -175,6 +180,12 @@ export default function Clientes() {
                         <span className="font-medium text-destructive">{formatCurrency(valorCusto)}</span>
                       </div>
                     )}
+                    {valorVenc > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span>Valor até vencimento</span>
+                        <span className="font-medium text-destructive">{formatCurrency(valorVenc)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-xs font-semibold">
                       <span className="flex items-center gap-1">
                         <DollarSign className="h-3 w-3 text-green-400" />
@@ -205,11 +216,15 @@ export default function Clientes() {
               <Label>Valor de custo <span className="text-muted-foreground font-normal">(opcional)</span></Label>
               <Input type="number" step="0.01" value={editValues.valor_custo} onChange={e => setEditValues(v => ({ ...v, valor_custo: e.target.value }))} className="bg-secondary/50" />
             </div>
+            <div className="space-y-2">
+              <Label>Valor até vencimento <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+              <Input type="number" step="0.01" value={editValues.valor_ate_vencimento} onChange={e => setEditValues(v => ({ ...v, valor_ate_vencimento: e.target.value }))} className="bg-secondary/50" />
+            </div>
             <div className="p-3 rounded-lg bg-secondary/30 text-sm">
               <div className="flex justify-between">
                 <span>Valor líquido</span>
                 <span className="font-bold text-green-400">
-                  {formatCurrency((Number(editValues.valor_negociado) || 0) - (Number(editValues.valor_custo) || 0))}
+                  {formatCurrency((Number(editValues.valor_negociado) || 0) - (Number(editValues.valor_custo) || 0) - (Number(editValues.valor_ate_vencimento) || 0))}
                 </span>
               </div>
             </div>

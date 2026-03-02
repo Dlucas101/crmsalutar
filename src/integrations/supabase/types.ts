@@ -55,6 +55,7 @@ export type Database = {
           nome: string
           responsavel_id: string | null
           updated_at: string
+          valor_ate_vencimento: number | null
           valor_custo: number | null
           valor_negociado: number | null
           whatsapp: string | null
@@ -69,6 +70,7 @@ export type Database = {
           nome: string
           responsavel_id?: string | null
           updated_at?: string
+          valor_ate_vencimento?: number | null
           valor_custo?: number | null
           valor_negociado?: number | null
           whatsapp?: string | null
@@ -83,6 +85,7 @@ export type Database = {
           nome?: string
           responsavel_id?: string | null
           updated_at?: string
+          valor_ate_vencimento?: number | null
           valor_custo?: number | null
           valor_negociado?: number | null
           whatsapp?: string | null
