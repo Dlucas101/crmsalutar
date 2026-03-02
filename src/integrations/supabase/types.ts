@@ -53,7 +53,10 @@ export type Database = {
           id: string
           lead_id: string | null
           nome: string
+          responsavel_id: string | null
           updated_at: string
+          valor_custo: number | null
+          valor_negociado: number | null
           whatsapp: string | null
         }
         Insert: {
@@ -64,7 +67,10 @@ export type Database = {
           id?: string
           lead_id?: string | null
           nome: string
+          responsavel_id?: string | null
           updated_at?: string
+          valor_custo?: number | null
+          valor_negociado?: number | null
           whatsapp?: string | null
         }
         Update: {
@@ -75,7 +81,10 @@ export type Database = {
           id?: string
           lead_id?: string | null
           nome?: string
+          responsavel_id?: string | null
           updated_at?: string
+          valor_custo?: number | null
+          valor_negociado?: number | null
           whatsapp?: string | null
         }
         Relationships: [
