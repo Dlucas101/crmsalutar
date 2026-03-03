@@ -91,9 +91,24 @@ export default function ClienteCard({ client, responsavelNome, onEdit }: Props) 
             </span>
             <span className={valorFinal >= 0 ? "text-green-400" : "text-destructive"}>{fmt(valorFinal)}</span>
           </div>
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Mensalidades pagas</span>
-            <span>{client.mensalidades_pagas ?? 0}</span>
+          <div className="border-t border-border/30 pt-1 mt-1">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Mensalidades pagas</span>
+              <div className="flex gap-1">
+                {[1, 2, 3].map(m => (
+                  <span
+                    key={m}
+                    className={`inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold ${
+                      m <= (client.mensalidades_pagas ?? 0)
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {m}ª
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </CardContent>
