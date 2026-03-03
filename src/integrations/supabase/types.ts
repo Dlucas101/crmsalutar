@@ -52,12 +52,14 @@ export type Database = {
           endereco: string | null
           id: string
           lead_id: string | null
+          mensalidades_pagas: number | null
           nome: string
           responsavel_id: string | null
           updated_at: string
           valor_ate_vencimento: number | null
           valor_custo: number | null
           valor_negociado: number | null
+          valor_pago: number | null
           whatsapp: string | null
         }
         Insert: {
@@ -67,12 +69,14 @@ export type Database = {
           endereco?: string | null
           id?: string
           lead_id?: string | null
+          mensalidades_pagas?: number | null
           nome: string
           responsavel_id?: string | null
           updated_at?: string
           valor_ate_vencimento?: number | null
           valor_custo?: number | null
           valor_negociado?: number | null
+          valor_pago?: number | null
           whatsapp?: string | null
         }
         Update: {
@@ -82,12 +86,14 @@ export type Database = {
           endereco?: string | null
           id?: string
           lead_id?: string | null
+          mensalidades_pagas?: number | null
           nome?: string
           responsavel_id?: string | null
           updated_at?: string
           valor_ate_vencimento?: number | null
           valor_custo?: number | null
           valor_negociado?: number | null
+          valor_pago?: number | null
           whatsapp?: string | null
         }
         Relationships: [

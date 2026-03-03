@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Users, Mail, Phone, Building2, DollarSign, User, Pencil } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Users } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import ClienteCard from "@/components/clientes/ClienteCard";
+import ClienteEditDialog from "@/components/clientes/ClienteEditDialog";
+import FinancialSummary from "@/components/clientes/FinancialSummary";
 
 interface Client {
   id: string;
@@ -20,6 +21,8 @@ interface Client {
   valor_negociado: number | null;
   valor_custo: number | null;
   valor_ate_vencimento: number | null;
+  valor_pago: number | null;
+  mensalidades_pagas: number | null;
   responsavel_id: string | null;
   created_at: string;
 }
@@ -30,11 +33,16 @@ interface Profile {
 }
 
 export default function Clientes() {
+  const { user, role } = useAuth();
+  const isAdmin = role === "admin" || role === "gestor";
+
   const [clients, setClients] = useState<Client[]>([]);
   const [members, setMembers] = useState<Profile[]>([]);
   const [filterMember, setFilterMember] = useState<string>("all");
   const [editClient, setEditClient] = useState<Client | null>(null);
-  const [editValues, setEditValues] = useState({ valor_negociado: "", valor_custo: "", valor_ate_vencimento: "" });
+  const [editValues, setEditValues] = useState({
+    valor_negociado: "", valor_custo: "", valor_ate_vencimento: "", valor_pago: "", mensalidades_pagas: "",
+  });
 
   const fetchData = async () => {
     const [clientsRes, membersRes] = await Promise.all([
@@ -47,44 +55,43 @@ export default function Clientes() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // Try to get responsavel from lead if not set on client
-  const [leadResponsaveis, setLeadResponsaveis] = useState<Record<string, string>>({});
+  // Lead responsáveis fallback
+  const [leadResp, setLeadResp] = useState<Record<string, string>>({});
   useEffect(() => {
-    const leadsWithoutResp = clients.filter(c => !c.responsavel_id && c.lead_id);
-    if (leadsWithoutResp.length === 0) return;
-    const ids = leadsWithoutResp.map(c => c.lead_id!);
-    supabase.from("leads").select("id, responsible_id").in("id", ids).then(({ data }) => {
+    const need = clients.filter(c => !c.responsavel_id && c.lead_id);
+    if (!need.length) return;
+    supabase.from("leads").select("id, responsible_id").in("id", need.map(c => c.lead_id!)).then(({ data }) => {
       if (data) {
-        const map: Record<string, string> = {};
-        data.forEach(l => { if (l.responsible_id) map[l.id] = l.responsible_id; });
-        setLeadResponsaveis(map);
+        const m: Record<string, string> = {};
+        data.forEach(l => { if (l.responsible_id) m[l.id] = l.responsible_id; });
+        setLeadResp(m);
       }
     });
   }, [clients]);
 
-  const getResponsavelId = (c: Client) => c.responsavel_id || (c.lead_id ? leadResponsaveis[c.lead_id] : null);
+  const getRespId = (c: Client) => c.responsavel_id || (c.lead_id ? leadResp[c.lead_id] : null);
   const getMemberName = (id: string | null | undefined) => members.find(m => m.id === id)?.nome || "—";
 
-  const filteredClients = filterMember === "all"
+  // Filter by member: admins see all, others see only their own
+  const myClients = isAdmin
     ? clients
-    : clients.filter(c => getResponsavelId(c) === filterMember);
+    : clients.filter(c => getRespId(c) === user?.id);
 
-  const getValorLiquido = (c: Client) => {
-    const neg = Number(c.valor_negociado) || 0;
-    const custo = Number(c.valor_custo) || 0;
-    const venc = Number(c.valor_ate_vencimento) || 0;
-    return neg - custo - venc;
-  };
+  const filteredClients = filterMember === "all"
+    ? myClients
+    : myClients.filter(c => getRespId(c) === filterMember);
 
-  const formatCurrency = (v: number) =>
-    v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const activeClients = filteredClients.filter(c => (c.mensalidades_pagas ?? 0) < 3);
+  const historyClients = filteredClients.filter(c => (c.mensalidades_pagas ?? 0) >= 3);
 
   const openEdit = (c: Client) => {
     setEditClient(c);
     setEditValues({
-      valor_negociado: String(c.valor_negociado || ""),
-      valor_custo: String(c.valor_custo || ""),
-      valor_ate_vencimento: String(c.valor_ate_vencimento || ""),
+      valor_negociado: String(c.valor_negociado ?? ""),
+      valor_custo: String(c.valor_custo ?? ""),
+      valor_ate_vencimento: String(c.valor_ate_vencimento ?? ""),
+      valor_pago: String(c.valor_pago ?? ""),
+      mensalidades_pagas: String(c.mensalidades_pagas ?? 0),
     });
   };
 
@@ -94,6 +101,8 @@ export default function Clientes() {
       valor_negociado: Number(editValues.valor_negociado) || 0,
       valor_custo: Number(editValues.valor_custo) || 0,
       valor_ate_vencimento: Number(editValues.valor_ate_vencimento) || 0,
+      valor_pago: Number(editValues.valor_pago) || 0,
+      mensalidades_pagas: Number(editValues.mensalidades_pagas) || 0,
     }).eq("id", editClient.id);
     if (error) { toast.error("Erro ao salvar"); return; }
     toast.success("Valores atualizados!");
@@ -101,137 +110,72 @@ export default function Clientes() {
     fetchData();
   };
 
+  const renderGrid = (list: Client[]) =>
+    list.length === 0 ? (
+      <Card className="glass-panel neon-border">
+        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+          <Users className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">Nenhum cliente nesta aba.</p>
+        </CardContent>
+      </Card>
+    ) : (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {list.map(c => (
+          <ClienteCard
+            key={c.id}
+            client={c}
+            responsavelNome={getMemberName(getRespId(c))}
+            onEdit={openEdit}
+          />
+        ))}
+      </div>
+    );
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold neon-glow">Clientes</h1>
-          <p className="text-muted-foreground text-sm mt-1">{filteredClients.length} clientes cadastrados</p>
+          <p className="text-muted-foreground text-sm mt-1">{myClients.length} clientes</p>
         </div>
-        <Select value={filterMember} onValueChange={setFilterMember}>
-          <SelectTrigger className="w-[200px] bg-secondary/50">
-            <SelectValue placeholder="Filtrar por técnico" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os membros</SelectItem>
-            {members.map(m => (
-              <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {isAdmin && (
+          <Select value={filterMember} onValueChange={setFilterMember}>
+            <SelectTrigger className="w-[200px] bg-secondary/50">
+              <SelectValue placeholder="Filtrar por membro" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os membros</SelectItem>
+              {members.map(m => (
+                <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
-      {filteredClients.length === 0 ? (
-        <Card className="glass-panel neon-border">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <Users className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">Nenhum cliente ainda.</p>
-            <p className="text-xs text-muted-foreground mt-1">Clientes são criados automaticamente ao fechar um lead como "Ganho".</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredClients.map((client) => {
-            const responsavelId = getResponsavelId(client);
-            const valorNeg = Number(client.valor_negociado) || 0;
-            const valorCusto = Number(client.valor_custo) || 0;
-            const valorVenc = Number(client.valor_ate_vencimento) || 0;
-            const valorLiquido = getValorLiquido(client);
-            return (
-              <Card key={client.id} className="glass-panel neon-border hover:border-primary/30 transition-colors">
-                <CardHeader className="pb-2 flex flex-row items-start justify-between">
-                  <CardTitle className="text-base font-semibold text-foreground">{client.nome}</CardTitle>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(client)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <User className="h-3.5 w-3.5 text-primary" />
-                    <span className="font-medium text-foreground">{getMemberName(responsavelId)}</span>
-                  </div>
-                  {client.cnpj_cpf && (
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-3.5 w-3.5" />
-                      <span>{client.cnpj_cpf}</span>
-                    </div>
-                  )}
-                  {client.email && (
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-3.5 w-3.5" />
-                      <span>{client.email}</span>
-                    </div>
-                  )}
-                  {client.whatsapp && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-3.5 w-3.5" />
-                      <span>{client.whatsapp}</span>
-                    </div>
-                  )}
-                  {/* Financial info */}
-                  <div className="border-t border-border/50 pt-2 mt-2 space-y-1">
-                    <div className="flex justify-between text-xs">
-                      <span>Valor negociado</span>
-                      <span className="font-medium text-foreground">{formatCurrency(valorNeg)}</span>
-                    </div>
-                    {valorCusto > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span>Valor de custo</span>
-                        <span className="font-medium text-destructive">{formatCurrency(valorCusto)}</span>
-                      </div>
-                    )}
-                    {valorVenc > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span>Valor até vencimento</span>
-                        <span className="font-medium text-destructive">{formatCurrency(valorVenc)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between text-xs font-semibold">
-                      <span className="flex items-center gap-1">
-                        <DollarSign className="h-3 w-3 text-green-400" />
-                        Valor líquido
-                      </span>
-                      <span className="text-green-400">{formatCurrency(valorLiquido)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+      {/* Financial Summary */}
+      <FinancialSummary clients={filteredClients} label={isAdmin && filterMember !== "all" ? `Resumo — ${getMemberName(filterMember)}` : "Resumo financeiro"} />
 
-      {/* Edit dialog */}
-      <Dialog open={!!editClient} onOpenChange={(open) => { if (!open) setEditClient(null); }}>
-        <DialogContent className="glass-panel border-border max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="neon-glow">Editar Valores — {editClient?.nome}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Valor negociado (mensalidade)</Label>
-              <Input type="number" step="0.01" value={editValues.valor_negociado} onChange={e => setEditValues(v => ({ ...v, valor_negociado: e.target.value }))} className="bg-secondary/50" />
-            </div>
-            <div className="space-y-2">
-              <Label>Valor de custo <span className="text-muted-foreground font-normal">(opcional)</span></Label>
-              <Input type="number" step="0.01" value={editValues.valor_custo} onChange={e => setEditValues(v => ({ ...v, valor_custo: e.target.value }))} className="bg-secondary/50" />
-            </div>
-            <div className="space-y-2">
-              <Label>Valor até vencimento <span className="text-muted-foreground font-normal">(opcional)</span></Label>
-              <Input type="number" step="0.01" value={editValues.valor_ate_vencimento} onChange={e => setEditValues(v => ({ ...v, valor_ate_vencimento: e.target.value }))} className="bg-secondary/50" />
-            </div>
-            <div className="p-3 rounded-lg bg-secondary/30 text-sm">
-              <div className="flex justify-between">
-                <span>Valor líquido</span>
-                <span className="font-bold text-green-400">
-                  {formatCurrency((Number(editValues.valor_negociado) || 0) - (Number(editValues.valor_custo) || 0) - (Number(editValues.valor_ate_vencimento) || 0))}
-                </span>
-              </div>
-            </div>
-            <Button onClick={handleSave} className="w-full gradient-accent text-primary-foreground font-semibold">Salvar</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Tabs */}
+      <Tabs defaultValue="ativos" className="w-full">
+        <TabsList>
+          <TabsTrigger value="ativos">Ativos ({activeClients.length})</TabsTrigger>
+          <TabsTrigger value="historico">Histórico ({historyClients.length})</TabsTrigger>
+        </TabsList>
+        <TabsContent value="ativos">{renderGrid(activeClients)}</TabsContent>
+        <TabsContent value="historico">{renderGrid(historyClients)}</TabsContent>
+      </Tabs>
+
+      {/* Edit Dialog */}
+      <ClienteEditDialog
+        open={!!editClient}
+        clientName={editClient?.nome ?? ""}
+        values={editValues}
+        onChange={setEditValues}
+        onSave={handleSave}
+        onClose={() => setEditClient(null)}
+      />
     </div>
   );
 }
