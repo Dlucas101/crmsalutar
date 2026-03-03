@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import ClienteCard from "@/components/clientes/ClienteCard";
 import ClienteEditDialog from "@/components/clientes/ClienteEditDialog";
 import FinancialSummary from "@/components/clientes/FinancialSummary";
+import MensalidadesDialog from "@/components/clientes/MensalidadesDialog";
 
 interface Client {
   id: string;
@@ -40,6 +41,7 @@ export default function Clientes() {
   const [members, setMembers] = useState<Profile[]>([]);
   const [filterMember, setFilterMember] = useState<string>("all");
   const [editClient, setEditClient] = useState<Client | null>(null);
+  const [mensalidadesClient, setMensalidadesClient] = useState<Client | null>(null);
   const [editValues, setEditValues] = useState({
     valor_negociado: "", valor_custo: "", valor_ate_vencimento: "", valor_pago: "", mensalidades_pagas: "",
   });
@@ -126,6 +128,7 @@ export default function Clientes() {
             client={c}
             responsavelNome={getMemberName(getRespId(c))}
             onEdit={openEdit}
+            onMensalidades={(c) => setMensalidadesClient(c as Client)}
           />
         ))}
       </div>
@@ -176,6 +179,17 @@ export default function Clientes() {
         onSave={handleSave}
         onClose={() => setEditClient(null)}
       />
+
+      {/* Mensalidades Dialog */}
+      {mensalidadesClient && (
+        <MensalidadesDialog
+          open={!!mensalidadesClient}
+          clientId={mensalidadesClient.id}
+          clientName={mensalidadesClient.nome}
+          onClose={() => setMensalidadesClient(null)}
+          onUpdate={fetchData}
+        />
+      )}
     </div>
   );
 }

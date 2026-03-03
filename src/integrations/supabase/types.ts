@@ -184,6 +184,41 @@ export type Database = {
         }
         Relationships: []
       }
+      mensalidades: {
+        Row: {
+          client_id: string
+          created_at: string
+          data_pagamento: string
+          id: string
+          numero_mensalidade: number
+          valor: number
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          data_pagamento?: string
+          id?: string
+          numero_mensalidade: number
+          valor?: number
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          data_pagamento?: string
+          id?: string
+          numero_mensalidade?: number
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mensalidades_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       metas: {
         Row: {
           ano: number

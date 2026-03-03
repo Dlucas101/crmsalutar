@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Mail, Phone, Building2, DollarSign, User, Pencil } from "lucide-react";
+import { Mail, Phone, Building2, DollarSign, User, Pencil, CreditCard } from "lucide-react";
 
 interface Client {
   id: string;
@@ -21,11 +21,12 @@ interface Props {
   client: Client;
   responsavelNome: string;
   onEdit: (c: Client) => void;
+  onMensalidades: (c: Client) => void;
 }
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-export default function ClienteCard({ client, responsavelNome, onEdit }: Props) {
+export default function ClienteCard({ client, responsavelNome, onEdit, onMensalidades }: Props) {
   const valorNeg = Number(client.valor_negociado) || 0;
   const valorVenc = Number(client.valor_ate_vencimento) || 0;
   const valorCusto = Number(client.valor_custo) || 0;
@@ -36,9 +37,14 @@ export default function ClienteCard({ client, responsavelNome, onEdit }: Props) 
     <Card className="glass-panel neon-border hover:border-primary/30 transition-colors">
       <CardHeader className="pb-2 flex flex-row items-start justify-between">
         <CardTitle className="text-base font-semibold text-foreground">{client.nome}</CardTitle>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(client)}>
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMensalidades(client)} title="Mensalidades">
+            <CreditCard className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(client)} title="Editar valores">
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-2 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
