@@ -4,6 +4,7 @@ import { DollarSign, Users, Archive } from "lucide-react";
 interface Client {
   valor_pago: number | null;
   valor_custo: number | null;
+  valor_negociado: number | null;
   mensalidades_pagas: number | null;
 }
 
@@ -28,18 +29,26 @@ export default function FinancialSummary({ clients, label }: Props) {
   const totalPago = sum(clients, "valor_pago");
   const totalCusto = sum(clients, "valor_custo");
 
+  // Total a receber: para cada cliente ativo, meses restantes * (negociado - custo)
+  const totalAReceber = ativos.reduce((acc, c) => {
+    const mesesRestantes = 3 - (c.mensalidades_pagas ?? 0);
+    const lucroPorMes = (Number(c.valor_negociado) || 0) - (Number(c.valor_custo) || 0);
+    return acc + Math.max(0, mesesRestantes * lucroPorMes);
+  }, 0);
+
   const items = [
     { icon: Users, label: "Clientes ativos", value: String(ativos.length), color: "text-primary" },
     { icon: Archive, label: "Histórico", value: String(historico.length), color: "text-muted-foreground" },
     { icon: DollarSign, label: "Total recebido", value: fmt(totalPago), color: "text-foreground" },
     { icon: DollarSign, label: "Total custos", value: fmt(totalCusto), color: "text-destructive" },
     { icon: DollarSign, label: "Lucro total", value: fmt(totalPago - totalCusto), color: "text-green-400" },
+    { icon: DollarSign, label: "Total a receber", value: fmt(totalAReceber), color: "text-primary" },
   ];
 
   return (
     <div className="space-y-2">
       <h3 className="text-sm font-semibold text-muted-foreground">{label}</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {items.map((item, i) => (
           <Card key={i} className="glass-panel neon-border">
             <CardContent className="p-3 flex flex-col items-center text-center gap-1">
