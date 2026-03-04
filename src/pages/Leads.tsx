@@ -148,7 +148,7 @@ export default function Leads() {
       ? leads.filter((l) => !(l as any).responsible_id)
       : leads.filter((l) => (l as any).responsible_id === filterResponsible);
 
-  const LeadForm = ({ onSubmit, submitLabel }: { onSubmit: (e: React.FormEvent) => Promise<void>; submitLabel: string }) => (
+  const renderLeadForm = (onSubmit: (e: React.FormEvent) => Promise<void>, submitLabel: string) => (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -227,7 +227,7 @@ export default function Leads() {
               <DialogHeader>
                 <DialogTitle className="neon-glow">Novo Lead</DialogTitle>
               </DialogHeader>
-              <LeadForm onSubmit={handleCreate} submitLabel="Criar Lead" />
+              {renderLeadForm(handleCreate, "Criar Lead")}
             </DialogContent>
           </Dialog>
         </div>
@@ -239,7 +239,7 @@ export default function Leads() {
           <DialogHeader>
             <DialogTitle className="neon-glow">Editar Lead</DialogTitle>
           </DialogHeader>
-          <LeadForm onSubmit={handleEdit} submitLabel="Salvar Alterações" />
+          {renderLeadForm(handleEdit, "Salvar Alterações")}
         </DialogContent>
       </Dialog>
 
