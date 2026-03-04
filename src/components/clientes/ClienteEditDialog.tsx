@@ -8,7 +8,6 @@ interface EditValues {
   valor_ate_vencimento: string;
   valor_custo: string;
   valor_pago: string;
-  mensalidades_pagas: string;
 }
 
 interface Props {
@@ -51,10 +50,6 @@ export default function ClienteEditDialog({ open, clientName, values, onChange, 
           <div className="space-y-2">
             <Label>Valor pago</Label>
             <Input type="number" step="0.01" value={values.valor_pago} onChange={e => set("valor_pago", e.target.value)} className="bg-secondary/50" />
-          </div>
-          <div className="space-y-2">
-            <Label>Mensalidades pagas</Label>
-            <Input type="number" step="1" min="0" value={values.mensalidades_pagas} onChange={e => set("mensalidades_pagas", e.target.value)} className="bg-secondary/50" />
           </div>
           <div className="p-3 rounded-lg bg-secondary/30 text-sm space-y-1">
             <div className="flex justify-between">

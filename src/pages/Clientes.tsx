@@ -25,12 +25,21 @@ interface Client {
   valor_pago: number | null;
   mensalidades_pagas: number | null;
   responsavel_id: string | null;
+  historico: boolean | null;
   created_at: string;
 }
 
 interface Profile {
   id: string;
   nome: string;
+}
+
+export interface Mensalidade {
+  id: string;
+  client_id: string;
+  numero_mensalidade: number;
+  valor: number;
+  data_pagamento: string;
 }
 
 export default function Clientes() {
@@ -42,17 +51,28 @@ export default function Clientes() {
   const [filterMember, setFilterMember] = useState<string>("all");
   const [editClient, setEditClient] = useState<Client | null>(null);
   const [mensalidadesClient, setMensalidadesClient] = useState<Client | null>(null);
+  const [mensalidadesMap, setMensalidadesMap] = useState<Record<string, Mensalidade[]>>({});
+  const [selectedClientIds, setSelectedClientIds] = useState<Set<string>>(new Set());
   const [editValues, setEditValues] = useState({
-    valor_negociado: "", valor_custo: "", valor_ate_vencimento: "", valor_pago: "", mensalidades_pagas: "",
+    valor_negociado: "", valor_custo: "", valor_ate_vencimento: "", valor_pago: "",
   });
 
   const fetchData = async () => {
-    const [clientsRes, membersRes] = await Promise.all([
+    const [clientsRes, membersRes, mensRes] = await Promise.all([
       supabase.from("clients").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("id, nome"),
+      supabase.from("mensalidades").select("*").order("numero_mensalidade", { ascending: true }),
     ]);
     if (clientsRes.data) setClients(clientsRes.data as Client[]);
     if (membersRes.data) setMembers(membersRes.data);
+    if (mensRes.data) {
+      const map: Record<string, Mensalidade[]> = {};
+      (mensRes.data as Mensalidade[]).forEach(m => {
+        if (!map[m.client_id]) map[m.client_id] = [];
+        map[m.client_id].push(m);
+      });
+      setMensalidadesMap(map);
+    }
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -74,7 +94,6 @@ export default function Clientes() {
   const getRespId = (c: Client) => c.responsavel_id || (c.lead_id ? leadResp[c.lead_id] : null);
   const getMemberName = (id: string | null | undefined) => members.find(m => m.id === id)?.nome || "—";
 
-  // Filter by member: admins see all, others see only their own
   const myClients = isAdmin
     ? clients
     : clients.filter(c => getRespId(c) === user?.id);
@@ -83,8 +102,16 @@ export default function Clientes() {
     ? myClients
     : myClients.filter(c => getRespId(c) === filterMember);
 
-  const activeClients = filteredClients.filter(c => (c.mensalidades_pagas ?? 0) < 3);
-  const historyClients = filteredClients.filter(c => (c.mensalidades_pagas ?? 0) >= 3);
+  const activeClients = filteredClients.filter(c => !c.historico);
+  const historyClients = filteredClients.filter(c => !!c.historico);
+
+  const toggleSelect = (id: string) => {
+    setSelectedClientIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const openEdit = (c: Client) => {
     setEditClient(c);
@@ -93,7 +120,6 @@ export default function Clientes() {
       valor_custo: String(c.valor_custo ?? ""),
       valor_ate_vencimento: String(c.valor_ate_vencimento ?? ""),
       valor_pago: String(c.valor_pago ?? ""),
-      mensalidades_pagas: String(c.mensalidades_pagas ?? 0),
     });
   };
 
@@ -104,7 +130,6 @@ export default function Clientes() {
       valor_custo: Number(editValues.valor_custo) || 0,
       valor_ate_vencimento: Number(editValues.valor_ate_vencimento) || 0,
       valor_pago: Number(editValues.valor_pago) || 0,
-      mensalidades_pagas: Number(editValues.mensalidades_pagas) || 0,
     }).eq("id", editClient.id);
     if (error) { toast.error("Erro ao salvar"); return; }
     toast.success("Valores atualizados!");
@@ -112,7 +137,16 @@ export default function Clientes() {
     fetchData();
   };
 
-  const renderGrid = (list: Client[]) =>
+  const handleMoveToHistory = async (clientId: string) => {
+    const { error } = await supabase.from("clients").update({ historico: true } as any).eq("id", clientId);
+    if (error) { toast.error("Erro ao mover para histórico"); return; }
+    toast.success("Cliente movido para histórico!");
+    fetchData();
+  };
+
+  const selectedClients = activeClients.filter(c => selectedClientIds.has(c.id));
+
+  const renderGrid = (list: Client[], showSelection = false) =>
     list.length === 0 ? (
       <Card className="glass-panel neon-border">
         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -127,8 +161,12 @@ export default function Clientes() {
             key={c.id}
             client={c}
             responsavelNome={getMemberName(getRespId(c))}
+            mensalidades={mensalidadesMap[c.id] || []}
+            selected={showSelection ? selectedClientIds.has(c.id) : undefined}
+            onToggleSelect={showSelection ? () => toggleSelect(c.id) : undefined}
             onEdit={openEdit}
             onMensalidades={(c) => setMensalidadesClient(c as Client)}
+            onMoveToHistory={handleMoveToHistory}
           />
         ))}
       </div>
@@ -136,7 +174,6 @@ export default function Clientes() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold neon-glow">Clientes</h1>
@@ -157,20 +194,22 @@ export default function Clientes() {
         )}
       </div>
 
-      {/* Financial Summary */}
-      <FinancialSummary clients={filteredClients} label={isAdmin && filterMember !== "all" ? `Resumo — ${getMemberName(filterMember)}` : "Resumo financeiro"} />
+      <FinancialSummary
+        clients={filteredClients}
+        selectedClients={selectedClients}
+        mensalidadesMap={mensalidadesMap}
+        label={isAdmin && filterMember !== "all" ? `Resumo — ${getMemberName(filterMember)}` : "Resumo financeiro"}
+      />
 
-      {/* Tabs */}
       <Tabs defaultValue="ativos" className="w-full">
         <TabsList>
           <TabsTrigger value="ativos">Ativos ({activeClients.length})</TabsTrigger>
           <TabsTrigger value="historico">Histórico ({historyClients.length})</TabsTrigger>
         </TabsList>
-        <TabsContent value="ativos">{renderGrid(activeClients)}</TabsContent>
+        <TabsContent value="ativos">{renderGrid(activeClients, true)}</TabsContent>
         <TabsContent value="historico">{renderGrid(historyClients)}</TabsContent>
       </Tabs>
 
-      {/* Edit Dialog */}
       <ClienteEditDialog
         open={!!editClient}
         clientName={editClient?.nome ?? ""}
@@ -180,7 +219,6 @@ export default function Clientes() {
         onClose={() => setEditClient(null)}
       />
 
-      {/* Mensalidades Dialog */}
       {mensalidadesClient && (
         <MensalidadesDialog
           open={!!mensalidadesClient}
