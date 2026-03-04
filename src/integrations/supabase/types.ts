@@ -50,6 +50,7 @@ export type Database = {
           created_at: string
           email: string | null
           endereco: string | null
+          historico: boolean | null
           id: string
           lead_id: string | null
           mensalidades_pagas: number | null
@@ -67,6 +68,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           endereco?: string | null
+          historico?: boolean | null
           id?: string
           lead_id?: string | null
           mensalidades_pagas?: number | null
@@ -84,6 +86,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           endereco?: string | null
+          historico?: boolean | null
           id?: string
           lead_id?: string | null
           mensalidades_pagas?: number | null
