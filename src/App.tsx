@@ -16,6 +16,7 @@ import Visitas from "./pages/Visitas";
 import Membros from "./pages/Membros";
 import Relatorios from "./pages/Relatorios";
 import Metas from "./pages/Metas";
+import Comissoes from "./pages/Comissoes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
