@@ -10,6 +10,7 @@ import {
   UserCog,
   CalendarDays,
   Trophy,
+  DollarSign,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
