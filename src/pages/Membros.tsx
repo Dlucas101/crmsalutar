@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Tag, Users, UserPlus } from "lucide-react";
+import { Tag, Users, UserPlus, Pencil, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
 interface Profile {
@@ -28,7 +28,7 @@ interface UserRole {
 }
 
 export default function Membros() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
@@ -36,6 +36,15 @@ export default function Membros() {
   const [openRole, setOpenRole] = useState(false);
   const [openMember, setOpenMember] = useState(false);
   const [memberForm, setMemberForm] = useState({ nome: "", email: "", password: "" });
+
+  // Edit states
+  const [editMember, setEditMember] = useState<Profile | null>(null);
+  const [editForm, setEditForm] = useState({ nome: "", password: "" });
+  const [openEdit, setOpenEdit] = useState(false);
+
+  // Self password change
+  const [openSelfPassword, setOpenSelfPassword] = useState(false);
+  const [selfPasswordForm, setSelfPasswordForm] = useState({ current: "", newPassword: "", confirm: "" });
 
   const isAdmin = role === "admin";
 
@@ -77,12 +86,10 @@ export default function Membros() {
       return;
     }
 
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email: memberForm.email.trim(),
       password: memberForm.password,
-      options: {
-        data: { nome: memberForm.nome.trim() },
-      },
+      options: { data: { nome: memberForm.nome.trim() } },
     });
 
     if (error) {
@@ -93,7 +100,6 @@ export default function Membros() {
     toast.success("Membro criado! Um email de confirmação foi enviado.");
     setMemberForm({ nome: "", email: "", password: "" });
     setOpenMember(false);
-    // Profile will be created automatically via trigger
     setTimeout(() => fetchAll(), 2000);
   };
 
@@ -105,6 +111,66 @@ export default function Membros() {
     }
     toast.success("Função atualizada!");
     fetchAll();
+  };
+
+  const handleOpenEdit = (member: Profile) => {
+    setEditMember(member);
+    setEditForm({ nome: member.nome || "", password: "" });
+    setOpenEdit(true);
+  };
+
+  const handleAdminEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editMember) return;
+    if (!editForm.nome.trim()) {
+      toast.error("Nome é obrigatório");
+      return;
+    }
+    if (editForm.password && editForm.password.length < 6) {
+      toast.error("Senha deve ter pelo menos 6 caracteres");
+      return;
+    }
+
+    const body: Record<string, string> = { user_id: editMember.id, nome: editForm.nome.trim() };
+    if (editForm.password) body.password = editForm.password;
+
+    const { data, error } = await supabase.functions.invoke("admin-update-user", { body });
+
+    if (error || data?.error) {
+      toast.error(data?.error || error?.message || "Erro ao atualizar membro");
+      return;
+    }
+
+    toast.success("Membro atualizado!");
+    setOpenEdit(false);
+    setEditMember(null);
+    fetchAll();
+  };
+
+  const handleSelfPasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selfPasswordForm.newPassword || !selfPasswordForm.confirm) {
+      toast.error("Preencha todos os campos");
+      return;
+    }
+    if (selfPasswordForm.newPassword.length < 6) {
+      toast.error("Senha deve ter pelo menos 6 caracteres");
+      return;
+    }
+    if (selfPasswordForm.newPassword !== selfPasswordForm.confirm) {
+      toast.error("As senhas não coincidem");
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: selfPasswordForm.newPassword });
+    if (error) {
+      toast.error("Erro ao alterar senha: " + error.message);
+      return;
+    }
+
+    toast.success("Senha alterada com sucesso!");
+    setSelfPasswordForm({ current: "", newPassword: "", confirm: "" });
+    setOpenSelfPassword(false);
   };
 
   const getRoleName = (customRoleId: string | null) => {
@@ -132,91 +198,173 @@ export default function Membros() {
           <h1 className="text-2xl font-bold neon-glow">Membros</h1>
           <p className="text-muted-foreground text-sm mt-1">{profiles.length} membros</p>
         </div>
-        {isAdmin && (
-          <div className="flex gap-2">
-            <Dialog open={openMember} onOpenChange={setOpenMember}>
+        <div className="flex gap-2">
+          {/* Self password change - visible to all */}
+          {!isAdmin && (
+            <Dialog open={openSelfPassword} onOpenChange={setOpenSelfPassword}>
               <DialogTrigger asChild>
-                <Button className="gradient-accent text-primary-foreground font-semibold">
-                  <UserPlus className="h-4 w-4 mr-2" /> Novo Membro
+                <Button variant="outline">
+                  <KeyRound className="h-4 w-4 mr-2" /> Alterar Minha Senha
                 </Button>
               </DialogTrigger>
               <DialogContent className="glass-panel border-border max-w-sm">
                 <DialogHeader>
-                  <DialogTitle className="neon-glow">Novo Membro</DialogTitle>
+                  <DialogTitle className="neon-glow">Alterar Senha</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={createMember} className="space-y-4">
+                <form onSubmit={handleSelfPasswordChange} className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Nome</Label>
-                    <Input
-                      value={memberForm.nome}
-                      onChange={(e) => setMemberForm({ ...memberForm, nome: e.target.value })}
-                      placeholder="Nome completo"
-                      maxLength={100}
-                      required
-                      className="bg-secondary/50"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Email</Label>
-                    <Input
-                      type="email"
-                      value={memberForm.email}
-                      onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })}
-                      placeholder="email@exemplo.com"
-                      required
-                      className="bg-secondary/50"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Senha</Label>
+                    <Label>Nova Senha</Label>
                     <Input
                       type="password"
-                      value={memberForm.password}
-                      onChange={(e) => setMemberForm({ ...memberForm, password: e.target.value })}
+                      value={selfPasswordForm.newPassword}
+                      onChange={(e) => setSelfPasswordForm({ ...selfPasswordForm, newPassword: e.target.value })}
                       placeholder="Mínimo 6 caracteres"
                       minLength={6}
                       required
                       className="bg-secondary/50"
                     />
                   </div>
-                  <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">
-                    Criar Membro
-                  </Button>
-                </form>
-              </DialogContent>
-            </Dialog>
-
-            <Dialog open={openRole} onOpenChange={setOpenRole}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
-                  <Tag className="h-4 w-4 mr-2" /> Nova Função
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="glass-panel border-border max-w-sm">
-                <DialogHeader>
-                  <DialogTitle className="neon-glow">Nova Função</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={createCustomRole} className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Nome da Função</Label>
+                    <Label>Confirmar Nova Senha</Label>
                     <Input
-                      value={newRoleName}
-                      onChange={(e) => setNewRoleName(e.target.value)}
-                      placeholder="Ex: Gerente Comercial"
-                      maxLength={50}
+                      type="password"
+                      value={selfPasswordForm.confirm}
+                      onChange={(e) => setSelfPasswordForm({ ...selfPasswordForm, confirm: e.target.value })}
+                      placeholder="Repita a nova senha"
+                      minLength={6}
                       required
                       className="bg-secondary/50"
                     />
                   </div>
                   <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">
-                    Criar Função
+                    Alterar Senha
                   </Button>
                 </form>
               </DialogContent>
             </Dialog>
-          </div>
-        )}
+          )}
+
+          {isAdmin && (
+            <>
+              <Dialog open={openMember} onOpenChange={setOpenMember}>
+                <DialogTrigger asChild>
+                  <Button className="gradient-accent text-primary-foreground font-semibold">
+                    <UserPlus className="h-4 w-4 mr-2" /> Novo Membro
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="glass-panel border-border max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle className="neon-glow">Novo Membro</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={createMember} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Nome</Label>
+                      <Input
+                        value={memberForm.nome}
+                        onChange={(e) => setMemberForm({ ...memberForm, nome: e.target.value })}
+                        placeholder="Nome completo"
+                        maxLength={100}
+                        required
+                        className="bg-secondary/50"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        value={memberForm.email}
+                        onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })}
+                        placeholder="email@exemplo.com"
+                        required
+                        className="bg-secondary/50"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Senha</Label>
+                      <Input
+                        type="password"
+                        value={memberForm.password}
+                        onChange={(e) => setMemberForm({ ...memberForm, password: e.target.value })}
+                        placeholder="Mínimo 6 caracteres"
+                        minLength={6}
+                        required
+                        className="bg-secondary/50"
+                      />
+                    </div>
+                    <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">
+                      Criar Membro
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={openRole} onOpenChange={setOpenRole}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Tag className="h-4 w-4 mr-2" /> Nova Função
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="glass-panel border-border max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle className="neon-glow">Nova Função</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={createCustomRole} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Nome da Função</Label>
+                      <Input
+                        value={newRoleName}
+                        onChange={(e) => setNewRoleName(e.target.value)}
+                        placeholder="Ex: Gerente Comercial"
+                        maxLength={50}
+                        required
+                        className="bg-secondary/50"
+                      />
+                    </div>
+                    <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">
+                      Criar Função
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Admin edit dialog */}
+      <Dialog open={openEdit} onOpenChange={setOpenEdit}>
+        <DialogContent className="glass-panel border-border max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="neon-glow">Editar Membro</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleAdminEdit} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome</Label>
+              <Input
+                value={editForm.nome}
+                onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })}
+                placeholder="Nome completo"
+                maxLength={100}
+                required
+                className="bg-secondary/50"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Nova Senha (deixe vazio para manter)</Label>
+              <Input
+                type="password"
+                value={editForm.password}
+                onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                placeholder="Mínimo 6 caracteres"
+                className="bg-secondary/50"
+              />
+            </div>
+            <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">
+              Salvar Alterações
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {profiles.map((member) => (
@@ -232,6 +380,11 @@ export default function Membros() {
                     {SYSTEM_ROLE_LABELS[getSystemRole(member.id)] || getSystemRole(member.id)}
                   </p>
                 </div>
+                {isAdmin && (
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(member)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Função</Label>
