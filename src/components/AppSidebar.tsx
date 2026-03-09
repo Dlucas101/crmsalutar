@@ -44,6 +44,7 @@ const navItems = [
   { title: "Minhas Tarefas", url: "/tarefas", icon: CheckSquare },
   { title: "Visitas", url: "/visitas", icon: CalendarDays },
   { title: "Metas", url: "/metas", icon: Trophy },
+  { title: "Comissões", url: "/comissoes", icon: DollarSign },
   { title: "Membros", url: "/membros", icon: UserCog },
   { title: "Relatórios", url: "/relatorios", icon: FileSpreadsheet },
 ];
