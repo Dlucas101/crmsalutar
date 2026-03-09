@@ -1,62 +1,83 @@
 
 
-## Plano de Ajustes na Tela de Clientes
+## Plano: Módulo de Comissões por Mensalidade
 
-### Resumo das Mudanças
+### O que já funciona (validado)
 
-Quatro ajustes principais: (1) mostrar lucro por mensalidade no card, (2) adicionar seleção de clientes com totalização dinâmica no resumo financeiro, (3) mudar regra de histórico para botão manual na 3a mensalidade, (4) remover campo "Mensalidades pagas" do diálogo de edição.
+O módulo Clientes está operacional: registro de mensalidades individuais com valor/data, lucro por mensalidade, seleção com totalização, botão manual de histórico. Nenhuma correção necessária.
 
----
+### O que será construído (novo)
 
-### 1. Lucro por mensalidade no ClienteCard
-
-No `ClienteCard`, para cada mensalidade paga, exibir o lucro individual: `valor da mensalidade - custo do sistema`. Isso requer buscar as mensalidades do cliente. Duas opções: buscar no componente pai e passar como prop, ou exibir apenas o total. A abordagem mais limpa é carregar as mensalidades na página `Clientes.tsx` e passar para o card.
-
-- **Clientes.tsx**: Fetch da tabela `mensalidades` para todos os clientes e armazenar em um Map `clientId → Mensalidade[]`
-- **ClienteCard**: Receber `mensalidades` como prop e exibir, ao lado de cada badge (1ª, 2ª, 3ª), o valor pago e o lucro (`valor_mens - custo_sistema`)
-
-### 2. Seleção de clientes + totalização dinâmica no FinancialSummary
-
-- **Clientes.tsx**: Adicionar state `selectedClientIds: Set<string>` com checkboxes nos cards de clientes ativos
-- **ClienteCard**: Adicionar checkbox de seleção
-- **FinancialSummary**: Receber prop `selectedClients` (subset dos ativos selecionados) e exibir totalizadores específicos dos selecionados:
-  - Total pago (soma dos valores das mensalidades dos selecionados)
-  - Total custos (soma dos custos dos selecionados)
-  - Lucro dos selecionados
-- Quando nenhum cliente selecionado, mostrar o resumo geral como hoje
-
-### 3. Histórico manual com botão
-
-- **Mudança de lógica**: Clientes com 3 mensalidades pagas **não** vão automaticamente para o histórico
-- **Database**: Adicionar coluna `historico boolean DEFAULT false` na tabela `clients`
-- **ClienteCard**: Quando `mensalidades_pagas >= 3` e `historico = false`, exibir botão "Passar para histórico"
-- **Clientes.tsx**: 
-  - Ativos = `historico = false`
-  - Histórico = `historico = true`
-  - Handler para o botão que faz `UPDATE clients SET historico = true`
-
-### 4. Remover "Mensalidades pagas" do ClienteEditDialog
-
-- **ClienteEditDialog**: Remover o campo `mensalidades_pagas` do formulário (já é controlado pelo diálogo de mensalidades)
-- Remover do `editValues` state e do `handleSave`
+Uma nova página **Comissões** acessível pelo menu lateral, com cálculo automático de comissões por técnico/membro baseado nas mensalidades pagas.
 
 ---
 
-### Mudança no Banco de Dados
+### 1. Nova página: `src/pages/Comissoes.tsx`
 
-Uma migration para adicionar a coluna `historico`:
+**Filtros no topo:**
+- Seletor de mês/ano (padrão: mês atual)
+- Seletor de técnico/membro (padrão: todos)
 
-```sql
-ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS historico boolean DEFAULT false;
+**Resumo por técnico (cards):**
+Para cada técnico que tem comissão no mês filtrado:
+- Nome do técnico
+- Qtd de contratos com mensalidade no período
+- Qtd de mensalidades pagas consideradas
+- Valor bruto recebido (soma dos valores pagos)
+- Total de custos
+- Valor líquido da comissão
+
+**Tabela detalhada por contrato:**
+Ao clicar em um técnico ou quando filtrado por um específico:
+- Cliente (nome)
+- Nº da mensalidade (1ª, 2ª ou 3ª)
+- Data do pagamento
+- Valor pago
+- Custo do sistema
+- Comissão final (valor pago - custo)
+
+### 2. Lógica de cálculo
+
+```text
+Para cada técnico no mês selecionado:
+  1. Buscar todos os clients onde responsavel_id = técnico
+     (fallback: lead.responsible_id se client.responsavel_id = null)
+  2. Para cada client, buscar mensalidades onde:
+     - numero_mensalidade <= 3
+     - EXTRACT(MONTH FROM data_pagamento) = mês filtrado
+     - EXTRACT(YEAR FROM data_pagamento) = ano filtrado
+  3. Comissão de cada mensalidade = valor - custo_do_sistema
+     (se custo = 0 ou null, comissão = valor)
+  4. Totalizar por técnico
 ```
 
-### Arquivos Modificados
+### 3. Consulta de dados
 
-| Arquivo | Mudança |
+Toda a lógica será client-side usando dados já disponíveis:
+- `clients` (com responsavel_id e valor_custo)
+- `mensalidades` (com data_pagamento, valor, numero_mensalidade, client_id)
+- `profiles` (nomes dos membros)
+- `leads` (fallback de responsible_id)
+
+Filtragem por mês usando `data_pagamento` das mensalidades.
+
+### 4. Navegação
+
+Adicionar item "Comissões" no `AppSidebar.tsx` com ícone `DollarSign`, e rota `/comissoes` no `App.tsx`.
+
+### 5. Histórico
+
+O comportamento de histórico permanece inalterado — continua manual via botão no card do cliente.
+
+---
+
+### Arquivos
+
+| Arquivo | Ação |
 |---|---|
-| `src/pages/Clientes.tsx` | Fetch mensalidades, state de seleção, lógica ativos/histórico por coluna `historico`, remover `mensalidades_pagas` do edit |
-| `src/components/clientes/ClienteCard.tsx` | Checkbox seleção, lucro por mensalidade, botão "Passar para histórico" |
-| `src/components/clientes/ClienteEditDialog.tsx` | Remover campo "Mensalidades pagas" |
-| `src/components/clientes/FinancialSummary.tsx` | Aceitar clientes selecionados e mostrar totalização dinâmica |
-| Migration SQL | Adicionar coluna `historico` |
+| `src/pages/Comissoes.tsx` | Criar — página completa com filtros, resumo e tabela |
+| `src/components/AppSidebar.tsx` | Editar — adicionar link "Comissões" |
+| `src/App.tsx` | Editar — adicionar rota `/comissoes` |
+
+Nenhuma alteração no banco de dados necessária — os dados já existem nas tabelas `mensalidades` e `clients`.
 
