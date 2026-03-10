@@ -132,6 +132,7 @@ export default function Membros() {
     }
 
     const body: Record<string, string> = { user_id: editMember.id, nome: editForm.nome.trim() };
+    if (editForm.email.trim()) body.email = editForm.email.trim();
     if (editForm.password) body.password = editForm.password;
 
     const { data, error } = await supabase.functions.invoke("admin-update-user", { body });
