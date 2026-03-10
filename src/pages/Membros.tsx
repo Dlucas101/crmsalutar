@@ -351,6 +351,16 @@ export default function Membros() {
               />
             </div>
             <div className="space-y-2">
+              <Label>Novo Email (deixe vazio para manter)</Label>
+              <Input
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                placeholder="novo@email.com"
+                className="bg-secondary/50"
+              />
+            </div>
+            <div className="space-y-2">
               <Label>Nova Senha (deixe vazio para manter)</Label>
               <Input
                 type="password"

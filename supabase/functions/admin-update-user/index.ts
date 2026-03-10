@@ -34,18 +34,25 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Apenas administradores podem realizar esta ação" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const { user_id, password, nome } = await req.json();
+    const { user_id, password, nome, email } = await req.json();
 
     if (!user_id) {
       return new Response(JSON.stringify({ error: "user_id é obrigatório" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Update password if provided
+    // Update auth fields (password and/or email)
+    const authUpdate: Record<string, string> = {};
     if (password) {
       if (password.length < 6) {
         return new Response(JSON.stringify({ error: "Senha deve ter pelo menos 6 caracteres" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-      const { error } = await supabaseAdmin.auth.admin.updateUserById(user_id, { password });
+      authUpdate.password = password;
+    }
+    if (email) {
+      authUpdate.email = email;
+    }
+    if (Object.keys(authUpdate).length > 0) {
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(user_id, authUpdate);
       if (error) {
         return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
