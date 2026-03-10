@@ -39,7 +39,7 @@ export default function Membros() {
 
   // Edit states
   const [editMember, setEditMember] = useState<Profile | null>(null);
-  const [editForm, setEditForm] = useState({ nome: "", password: "" });
+  const [editForm, setEditForm] = useState({ nome: "", email: "", password: "" });
   const [openEdit, setOpenEdit] = useState(false);
 
   // Self password change
