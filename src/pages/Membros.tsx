@@ -115,7 +115,7 @@ export default function Membros() {
 
   const handleOpenEdit = (member: Profile) => {
     setEditMember(member);
-    setEditForm({ nome: member.nome || "", password: "" });
+    setEditForm({ nome: member.nome || "", email: "", password: "" });
     setOpenEdit(true);
   };
 
