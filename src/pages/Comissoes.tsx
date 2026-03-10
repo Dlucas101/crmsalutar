@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, Users, FileText, TrendingUp, ChevronDown, ChevronUp } from "lucide-react";
+import { DollarSign, Users, FileText, TrendingUp, ChevronDown, ChevronUp, Target, Wallet } from "lucide-react";
 
 const MONTHS = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -32,10 +33,14 @@ interface TecnicoSummary {
   valorBruto: number;
   totalCustos: number;
   comissaoLiquida: number;
+  metaBonus: number;
+  totalReceber: number;
   detalhes: MensalidadeWithClient[];
 }
 
 export default function Comissoes() {
+  const { user, role } = useAuth();
+  const isAdmin = role === "admin";
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
@@ -69,8 +74,21 @@ export default function Comissoes() {
   const { data: leads } = useQuery({
     queryKey: ["comissoes-leads"],
     queryFn: async () => {
-      const { data } = await supabase.from("leads").select("id, responsible_id");
+      const { data } = await supabase.from("leads").select("id, responsible_id, status, updated_at");
       return data || [];
+    },
+  });
+
+  const { data: metas } = useQuery({
+    queryKey: ["comissoes-metas", selectedMonth, selectedYear],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("metas")
+        .select("*")
+        .eq("mes", selectedMonth)
+        .eq("ano", selectedYear)
+        .maybeSingle();
+      return data;
     },
   });
 
@@ -79,13 +97,34 @@ export default function Comissoes() {
     return [currentYear - 1, currentYear, currentYear + 1];
   }, []);
 
+  // Count leads fechado_ganho per responsible in the selected month
+  const leadsGanhoByTecnico = useMemo(() => {
+    if (!leads) return new Map<string, number>();
+    const map = new Map<string, number>();
+    for (const l of leads) {
+      if (l.status !== "fechado_ganho" || !l.responsible_id) continue;
+      const d = new Date(l.updated_at);
+      if (d.getMonth() + 1 === selectedMonth && d.getFullYear() === selectedYear) {
+        map.set(l.responsible_id, (map.get(l.responsible_id) || 0) + 1);
+      }
+    }
+    return map;
+  }, [leads, selectedMonth, selectedYear]);
+
+  const totalLeadsGanho = useMemo(() => {
+    let total = 0;
+    for (const count of leadsGanhoByTecnico.values()) total += count;
+    return total;
+  }, [leadsGanhoByTecnico]);
+
+  const metaAtingida = metas ? totalLeadsGanho >= metas.quantidade_meta && metas.quantidade_meta > 0 : false;
+
   const tecnicoSummaries = useMemo(() => {
     if (!clients || !mensalidades || !profiles) return [];
 
     const leadsMap = new Map((leads || []).map((l) => [l.id, l.responsible_id]));
     const profilesMap = new Map(profiles.map((p) => [p.id, p.nome]));
 
-    // Build client -> responsavel mapping (with lead fallback)
     const clientMap = new Map(
       clients.map((c) => {
         const responsavel = c.responsavel_id || (c.lead_id ? leadsMap.get(c.lead_id) : null);
@@ -93,14 +132,12 @@ export default function Comissoes() {
       })
     );
 
-    // Filter mensalidades: only <= 3 and matching month/year
     const filtered = mensalidades.filter((m) => {
       if (m.numero_mensalidade > 3) return false;
       const d = new Date(m.data_pagamento);
       return d.getMonth() + 1 === selectedMonth && d.getFullYear() === selectedYear;
     });
 
-    // Group by técnico
     const byTecnico = new Map<string, MensalidadeWithClient[]>();
 
     for (const m of filtered) {
@@ -129,11 +166,17 @@ export default function Comissoes() {
       byTecnico.get(tecId)!.push(entry);
     }
 
+    const valorContratoMeta = metas ? Number(metas.valor_contrato) : 0;
+
     const summaries: TecnicoSummary[] = [];
     for (const [tecId, detalhes] of byTecnico) {
       const uniqueClients = new Set(detalhes.map((d) => d.client_id));
       const valorBruto = detalhes.reduce((s, d) => s + d.valor, 0);
       const totalCustos = detalhes.reduce((s, d) => s + d.valor_custo, 0);
+      const comissaoLiquida = valorBruto - totalCustos;
+
+      const leadsGanhoCount = leadsGanhoByTecnico.get(tecId) || 0;
+      const metaBonus = metaAtingida ? leadsGanhoCount * valorContratoMeta : 0;
 
       summaries.push({
         id: tecId,
@@ -142,18 +185,30 @@ export default function Comissoes() {
         mensalidades: detalhes.length,
         valorBruto,
         totalCustos,
-        comissaoLiquida: valorBruto - totalCustos,
+        comissaoLiquida,
+        metaBonus,
+        totalReceber: comissaoLiquida + metaBonus,
         detalhes: detalhes.sort((a, b) => a.client_nome.localeCompare(b.client_nome)),
       });
     }
 
     return summaries.sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [clients, mensalidades, profiles, leads, selectedMonth, selectedYear]);
+  }, [clients, mensalidades, profiles, leads, selectedMonth, selectedYear, metas, metaAtingida, leadsGanhoByTecnico]);
 
   const displayedSummaries = useMemo(() => {
-    if (selectedTecnico === "todos") return tecnicoSummaries;
-    return tecnicoSummaries.filter((t) => t.id === selectedTecnico);
-  }, [tecnicoSummaries, selectedTecnico]);
+    let filtered = tecnicoSummaries;
+
+    // Non-admin: only show own commissions
+    if (!isAdmin && user) {
+      filtered = filtered.filter((t) => t.id === user.id);
+    }
+
+    if (isAdmin && selectedTecnico !== "todos") {
+      filtered = filtered.filter((t) => t.id === selectedTecnico);
+    }
+
+    return filtered;
+  }, [tecnicoSummaries, selectedTecnico, isAdmin, user]);
 
   const totals = useMemo(() => {
     return displayedSummaries.reduce(
@@ -163,8 +218,10 @@ export default function Comissoes() {
         valorBruto: acc.valorBruto + t.valorBruto,
         totalCustos: acc.totalCustos + t.totalCustos,
         comissaoLiquida: acc.comissaoLiquida + t.comissaoLiquida,
+        metaBonus: acc.metaBonus + t.metaBonus,
+        totalReceber: acc.totalReceber + t.totalReceber,
       }),
-      { contratos: 0, mensalidades: 0, valorBruto: 0, totalCustos: 0, comissaoLiquida: 0 }
+      { contratos: 0, mensalidades: 0, valorBruto: 0, totalCustos: 0, comissaoLiquida: 0, metaBonus: 0, totalReceber: 0 }
     );
   }, [displayedSummaries]);
 
@@ -180,12 +237,14 @@ export default function Comissoes() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Comissões</h1>
         <p className="text-muted-foreground text-sm">
-          Cálculo de comissões por técnico/membro baseado nas mensalidades pagas
+          {isAdmin
+            ? "Cálculo de comissões por técnico/membro baseado nas mensalidades pagas"
+            : "Suas comissões baseadas nas mensalidades pagas"}
         </p>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3 items-center">
         <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
           <SelectTrigger className="w-[160px]">
             <SelectValue />
@@ -212,23 +271,33 @@ export default function Comissoes() {
           </SelectContent>
         </Select>
 
-        <Select value={selectedTecnico} onValueChange={setSelectedTecnico}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Todos os técnicos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os técnicos</SelectItem>
-            {(profiles || []).map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {isAdmin && (
+          <Select value={selectedTecnico} onValueChange={setSelectedTecnico}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Todos os técnicos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os técnicos</SelectItem>
+              {(profiles || []).map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        {metas && (
+          <Badge variant={metaAtingida ? "default" : "outline"} className={metaAtingida ? "bg-chart-2 text-white" : ""}>
+            <Target className="h-3 w-3 mr-1" />
+            Meta: {totalLeadsGanho}/{metas.quantidade_meta} contratos
+            {metaAtingida ? " ✓ Atingida!" : ""}
+          </Badge>
+        )}
       </div>
 
       {/* Totals */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <FileText className="h-5 w-5 text-primary" />
@@ -269,8 +338,26 @@ export default function Comissoes() {
           <CardContent className="p-4 flex items-center gap-3">
             <TrendingUp className="h-5 w-5 text-chart-2" />
             <div>
-              <p className="text-xs text-muted-foreground">Comissão Líquida</p>
+              <p className="text-xs text-muted-foreground">Comissão</p>
               <p className="text-lg font-bold text-chart-2">{fmt(totals.comissaoLiquida)}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <Target className="h-5 w-5 text-primary" />
+            <div>
+              <p className="text-xs text-muted-foreground">Metas</p>
+              <p className="text-lg font-bold text-foreground">{fmt(totals.metaBonus)}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <Wallet className="h-5 w-5 text-chart-2" />
+            <div>
+              <p className="text-xs text-muted-foreground">Total a Receber</p>
+              <p className="text-lg font-bold text-chart-2">{fmt(totals.totalReceber)}</p>
             </div>
           </CardContent>
         </Card>
@@ -304,9 +391,19 @@ export default function Comissoes() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
+                    <div className="text-right hidden sm:block">
+                      <p className="text-xs text-muted-foreground">Comissão</p>
+                      <p className="text-sm font-semibold text-chart-2">{fmt(tec.comissaoLiquida)}</p>
+                    </div>
+                    {tec.metaBonus > 0 && (
+                      <div className="text-right hidden sm:block">
+                        <p className="text-xs text-muted-foreground">Metas</p>
+                        <p className="text-sm font-semibold text-primary">{fmt(tec.metaBonus)}</p>
+                      </div>
+                    )}
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground">Comissão Líquida</p>
-                      <p className="text-lg font-bold text-chart-2">{fmt(tec.comissaoLiquida)}</p>
+                      <p className="text-xs text-muted-foreground">Total a Receber</p>
+                      <p className="text-lg font-bold text-chart-2">{fmt(tec.totalReceber)}</p>
                     </div>
                     {expandedTecnico === tec.id ? (
                       <ChevronUp className="h-5 w-5 text-muted-foreground" />
@@ -319,9 +416,14 @@ export default function Comissoes() {
 
               {expandedTecnico === tec.id && (
                 <CardContent className="p-0 pb-2">
-                  <div className="px-4 pb-2 flex gap-4 text-xs text-muted-foreground">
+                  <div className="px-4 pb-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
                     <span>Bruto: {fmt(tec.valorBruto)}</span>
                     <span>Custos: {fmt(tec.totalCustos)}</span>
+                    <span>Comissão: {fmt(tec.comissaoLiquida)}</span>
+                    {tec.metaBonus > 0 && (
+                      <span className="text-primary font-semibold">Bônus Meta: {fmt(tec.metaBonus)}</span>
+                    )}
+                    <span className="font-semibold text-chart-2">Total: {fmt(tec.totalReceber)}</span>
                   </div>
                   <Table>
                     <TableHeader>
