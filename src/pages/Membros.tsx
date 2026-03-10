@@ -39,7 +39,7 @@ export default function Membros() {
 
   // Edit states
   const [editMember, setEditMember] = useState<Profile | null>(null);
-  const [editForm, setEditForm] = useState({ nome: "", password: "" });
+  const [editForm, setEditForm] = useState({ nome: "", email: "", password: "" });
   const [openEdit, setOpenEdit] = useState(false);
 
   // Self password change
@@ -115,7 +115,7 @@ export default function Membros() {
 
   const handleOpenEdit = (member: Profile) => {
     setEditMember(member);
-    setEditForm({ nome: member.nome || "", password: "" });
+    setEditForm({ nome: member.nome || "", email: "", password: "" });
     setOpenEdit(true);
   };
 
@@ -132,6 +132,7 @@ export default function Membros() {
     }
 
     const body: Record<string, string> = { user_id: editMember.id, nome: editForm.nome.trim() };
+    if (editForm.email.trim()) body.email = editForm.email.trim();
     if (editForm.password) body.password = editForm.password;
 
     const { data, error } = await supabase.functions.invoke("admin-update-user", { body });
@@ -346,6 +347,16 @@ export default function Membros() {
                 placeholder="Nome completo"
                 maxLength={100}
                 required
+                className="bg-secondary/50"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Novo Email (deixe vazio para manter)</Label>
+              <Input
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                placeholder="novo@email.com"
                 className="bg-secondary/50"
               />
             </div>
