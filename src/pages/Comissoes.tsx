@@ -64,6 +64,19 @@ export default function Comissoes() {
     },
   });
 
+  const { data: userRoles } = useQuery({
+    queryKey: ["comissoes-user-roles"],
+    queryFn: async () => {
+      const { data } = await supabase.from("user_roles").select("user_id, role");
+      return data || [];
+    },
+  });
+
+  const adminIds = useMemo(() => {
+    if (!userRoles) return new Set<string>();
+    return new Set(userRoles.filter((r) => r.role === "admin" || r.role === "gestor").map((r) => r.user_id));
+  }, [userRoles]);
+
   const { data: profiles } = useQuery({
     queryKey: ["comissoes-profiles"],
     queryFn: async () => {
@@ -71,6 +84,11 @@ export default function Comissoes() {
       return data || [];
     },
   });
+
+  const nonAdminProfiles = useMemo(() => {
+    if (!profiles) return [];
+    return profiles.filter((p) => !adminIds.has(p.id));
+  }, [profiles, adminIds]);
 
   const { data: leads } = useQuery({
     queryKey: ["comissoes-leads"],
