@@ -82,9 +82,16 @@ export default function Metas() {
       setFormBonusDesc("");
     }
 
-    // Fetch members (non-admin)
+    // Fetch members (non-admin/gestor)
     const { data: allMembers } = await supabase.from("profiles").select("id, nome, cor");
-    setMembers(allMembers || []);
+    const { data: adminRoles } = await supabase
+      .from("user_roles")
+      .select("user_id")
+      .in("role", ["admin", "gestor"]);
+    const adminIdSet = new Set((adminRoles || []).map((r) => r.user_id));
+    setAdminIds(Array.from(adminIdSet));
+    const nonAdminMembers = (allMembers || []).filter((m) => !adminIdSet.has(m.id));
+    setMembers(nonAdminMembers);
 
     // Fetch leads won in selected month/year
     const startDate = new Date(selectedYear, selectedMonth - 1, 1).toISOString();
@@ -95,7 +102,8 @@ export default function Metas() {
       .eq("status", "fechado_ganho")
       .gte("updated_at", startDate)
       .lte("updated_at", endDate);
-    setLeadsGanhos((leads || []) as LeadGanho[]);
+    const nonAdminLeads = (leads || []).filter((l: any) => !adminIdSet.has(l.responsible_id));
+    setLeadsGanhos(nonAdminLeads as LeadGanho[]);
   };
 
   useEffect(() => { fetchData(); }, [selectedMonth, selectedYear]);
