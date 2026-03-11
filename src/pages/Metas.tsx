@@ -68,11 +68,18 @@ export default function Metas() {
       .maybeSingle();
     setMeta(metaData as Meta | null);
     if (metaData) {
-      setFormQtd(String((metaData as any).quantidade_meta));
-      setFormValor(String((metaData as any).valor_contrato));
+      const md = metaData as any;
+      setFormQtd(String(md.quantidade_meta));
+      setFormValor(String(md.valor_contrato));
+      setFormBonusQtd(md.meta_bonus_quantidade ? String(md.meta_bonus_quantidade) : "");
+      setFormBonusValor(md.meta_bonus_valor ? String(md.meta_bonus_valor) : "");
+      setFormBonusDesc(md.meta_bonus_descricao || "");
     } else {
       setFormQtd("");
       setFormValor("");
+      setFormBonusQtd("");
+      setFormBonusValor("");
+      setFormBonusDesc("");
     }
 
     // Fetch members (non-admin)
