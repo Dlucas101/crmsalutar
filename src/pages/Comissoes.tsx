@@ -217,7 +217,7 @@ export default function Comissoes() {
     }
 
     return summaries.sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [clients, mensalidades, profiles, leads, selectedMonth, selectedYear, metas, metaAtingida, superMetaAtingida, superMetaBonusValor, leadsGanhoByTecnico]);
+  }, [clients, mensalidades, nonAdminProfiles, leads, selectedMonth, selectedYear, metas, metaAtingida, superMetaAtingida, superMetaBonusValor, leadsGanhoByTecnico, adminIds]);
 
   const displayedSummaries = useMemo(() => {
     let filtered = tecnicoSummaries;
