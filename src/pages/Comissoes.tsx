@@ -181,6 +181,7 @@ export default function Comissoes() {
 
       const leadsGanhoCount = leadsGanhoByTecnico.get(tecId) || 0;
       const metaBonus = metaAtingida ? leadsGanhoCount * valorContratoMeta : 0;
+      const superMetaBonus = superMetaAtingida && superMetaBonusValor > 0 ? leadsGanhoCount * superMetaBonusValor : 0;
 
       summaries.push({
         id: tecId,
@@ -191,7 +192,8 @@ export default function Comissoes() {
         totalCustos,
         comissaoLiquida,
         metaBonus,
-        totalReceber: comissaoLiquida + metaBonus,
+        superMetaBonus,
+        totalReceber: comissaoLiquida + metaBonus + superMetaBonus,
         detalhes: detalhes.sort((a, b) => a.client_nome.localeCompare(b.client_nome)),
       });
     }
