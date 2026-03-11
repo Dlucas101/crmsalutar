@@ -34,6 +34,7 @@ interface TecnicoSummary {
   totalCustos: number;
   comissaoLiquida: number;
   metaBonus: number;
+  superMetaBonus: number;
   totalReceber: number;
   detalhes: MensalidadeWithClient[];
 }
