@@ -311,41 +311,13 @@ export default function Comissoes() {
         )}
       </div>
 
-      {/* Totals */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <FileText className="h-5 w-5 text-primary" />
             <div>
               <p className="text-xs text-muted-foreground">Contratos</p>
               <p className="text-lg font-bold text-foreground">{totals.contratos}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <Users className="h-5 w-5 text-primary" />
-            <div>
-              <p className="text-xs text-muted-foreground">Mensalidades</p>
-              <p className="text-lg font-bold text-foreground">{totals.mensalidades}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <DollarSign className="h-5 w-5 text-primary" />
-            <div>
-              <p className="text-xs text-muted-foreground">Valor Bruto</p>
-              <p className="text-lg font-bold text-foreground">{fmt(totals.valorBruto)}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <DollarSign className="h-5 w-5 text-destructive" />
-            <div>
-              <p className="text-xs text-muted-foreground">Custos</p>
-              <p className="text-lg font-bold text-foreground">{fmt(totals.totalCustos)}</p>
             </div>
           </CardContent>
         </Card>
@@ -367,6 +339,17 @@ export default function Comissoes() {
             </div>
           </CardContent>
         </Card>
+        {totals.superMetaBonus > 0 && (
+          <Card>
+            <CardContent className="p-4 flex items-center gap-3">
+              <span className="text-lg">🎯</span>
+              <div>
+                <p className="text-xs text-muted-foreground">Super Meta</p>
+                <p className="text-lg font-bold text-amber-500">{fmt(totals.superMetaBonus)}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <Wallet className="h-5 w-5 text-chart-2" />
@@ -377,6 +360,19 @@ export default function Comissoes() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Super meta prize description */}
+      {superMetaAtingida && superMetaDescricao && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <span className="text-2xl">🏆</span>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Super Meta Atingida!</p>
+              <p className="text-sm text-muted-foreground">Prêmio: {superMetaDescricao}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Per-technician cards */}
       {displayedSummaries.length === 0 ? (
