@@ -228,6 +228,9 @@ export type Database = {
           created_at: string
           id: string
           mes: number
+          meta_bonus_descricao: string | null
+          meta_bonus_quantidade: number | null
+          meta_bonus_valor: number | null
           quantidade_meta: number
           updated_at: string
           valor_contrato: number
@@ -237,6 +240,9 @@ export type Database = {
           created_at?: string
           id?: string
           mes: number
+          meta_bonus_descricao?: string | null
+          meta_bonus_quantidade?: number | null
+          meta_bonus_valor?: number | null
           quantidade_meta?: number
           updated_at?: string
           valor_contrato?: number
@@ -246,6 +252,9 @@ export type Database = {
           created_at?: string
           id?: string
           mes?: number
+          meta_bonus_descricao?: string | null
+          meta_bonus_quantidade?: number | null
+          meta_bonus_valor?: number | null
           quantidade_meta?: number
           updated_at?: string
           valor_contrato?: number

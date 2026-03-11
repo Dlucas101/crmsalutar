@@ -17,6 +17,9 @@ interface Meta {
   ano: number;
   quantidade_meta: number;
   valor_contrato: number;
+  meta_bonus_quantidade: number | null;
+  meta_bonus_valor: number | null;
+  meta_bonus_descricao: string | null;
 }
 
 interface Profile {
@@ -51,6 +54,9 @@ export default function Metas() {
   const [openConfig, setOpenConfig] = useState(false);
   const [formQtd, setFormQtd] = useState("");
   const [formValor, setFormValor] = useState("");
+  const [formBonusQtd, setFormBonusQtd] = useState("");
+  const [formBonusValor, setFormBonusValor] = useState("");
+  const [formBonusDesc, setFormBonusDesc] = useState("");
 
   const fetchData = async () => {
     // Fetch meta for selected month
@@ -62,11 +68,18 @@ export default function Metas() {
       .maybeSingle();
     setMeta(metaData as Meta | null);
     if (metaData) {
-      setFormQtd(String((metaData as any).quantidade_meta));
-      setFormValor(String((metaData as any).valor_contrato));
+      const md = metaData as any;
+      setFormQtd(String(md.quantidade_meta));
+      setFormValor(String(md.valor_contrato));
+      setFormBonusQtd(md.meta_bonus_quantidade ? String(md.meta_bonus_quantidade) : "");
+      setFormBonusValor(md.meta_bonus_valor ? String(md.meta_bonus_valor) : "");
+      setFormBonusDesc(md.meta_bonus_descricao || "");
     } else {
       setFormQtd("");
       setFormValor("");
+      setFormBonusQtd("");
+      setFormBonusValor("");
+      setFormBonusDesc("");
     }
 
     // Fetch members (non-admin)
@@ -93,18 +106,26 @@ export default function Metas() {
     const valor = parseFloat(formValor) || 0;
     if (qtd <= 0) { toast.error("Informe a quantidade da meta"); return; }
 
+    const bonusQtd = parseInt(formBonusQtd) || 0;
+    const bonusValor = parseFloat(formBonusValor) || 0;
+    const bonusDesc = formBonusDesc.trim() || null;
+
+    const payload = {
+      quantidade_meta: qtd,
+      valor_contrato: valor,
+      meta_bonus_quantidade: bonusQtd > 0 ? bonusQtd : 0,
+      meta_bonus_valor: bonusValor,
+      meta_bonus_descricao: bonusDesc,
+    };
+
     if (meta) {
-      const { error } = await supabase.from("metas").update({
-        quantidade_meta: qtd,
-        valor_contrato: valor,
-      }).eq("id", meta.id);
+      const { error } = await supabase.from("metas").update(payload).eq("id", meta.id);
       if (error) { toast.error("Erro ao atualizar meta"); return; }
     } else {
       const { error } = await supabase.from("metas").insert({
         mes: selectedMonth,
         ano: selectedYear,
-        quantidade_meta: qtd,
-        valor_contrato: valor,
+        ...payload,
       });
       if (error) { toast.error("Erro ao criar meta"); return; }
     }
@@ -119,6 +140,11 @@ export default function Metas() {
   const totalFechados = leadsGanhos.length;
   const faltamFechar = Math.max(0, metaQtd - totalFechados);
   const progressPercent = metaQtd > 0 ? Math.min(100, (totalFechados / metaQtd) * 100) : 0;
+
+  // Super meta
+  const superMetaQtd = meta?.meta_bonus_quantidade || 0;
+  const superMetaAtingida = superMetaQtd > 0 && totalFechados >= superMetaQtd;
+  const superMetaProgress = superMetaQtd > 0 ? Math.min(100, (totalFechados / superMetaQtd) * 100) : 0;
 
   // Per member breakdown
   const memberStats = members.map((m) => {
@@ -179,6 +205,23 @@ export default function Metas() {
                     <Label>Valor por Contrato (R$)</Label>
                     <Input type="number" min="0" step="0.01" value={formValor} onChange={(e) => setFormValor(e.target.value)} placeholder="Ex: 150.00" className="bg-secondary/50" required />
                   </div>
+
+                  <div className="border-t border-border pt-4 mt-4">
+                    <p className="text-sm font-semibold text-foreground mb-3">🎯 Super Meta (Bônus)</p>
+                    <div className="space-y-2">
+                      <Label>Quantidade para Super Meta (contratos)</Label>
+                      <Input type="number" min="0" value={formBonusQtd} onChange={(e) => setFormBonusQtd(e.target.value)} placeholder="Ex: 10 (deixe 0 para desativar)" className="bg-secondary/50" />
+                    </div>
+                    <div className="space-y-2 mt-2">
+                      <Label>Valor bônus por contrato (R$) — opcional</Label>
+                      <Input type="number" min="0" step="0.01" value={formBonusValor} onChange={(e) => setFormBonusValor(e.target.value)} placeholder="Ex: 50.00 (0 se não for valor)" className="bg-secondary/50" />
+                    </div>
+                    <div className="space-y-2 mt-2">
+                      <Label>Prêmio / Descrição — opcional</Label>
+                      <Input value={formBonusDesc} onChange={(e) => setFormBonusDesc(e.target.value)} placeholder="Ex: Jantar no restaurante X" className="bg-secondary/50" />
+                    </div>
+                  </div>
+
                   <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">Salvar Meta</Button>
                 </form>
               </DialogContent>
@@ -305,6 +348,45 @@ export default function Metas() {
               )}
             </CardContent>
           </Card>
+
+          {/* Super Meta card */}
+          {superMetaQtd > 0 && (
+            <Card className={`glass-panel neon-border ${superMetaAtingida ? 'ring-2 ring-amber-400/50' : ''}`}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                    🎯 Super Meta
+                    {superMetaAtingida && <Badge className="bg-amber-400/20 text-amber-400 text-xs">Atingida! 🎉</Badge>}
+                  </p>
+                  <Badge className="text-xs" style={{
+                    backgroundColor: superMetaAtingida ? "#f59e0b30" : "#6b728030",
+                    color: superMetaAtingida ? "#f59e0b" : "#6b7280",
+                  }}>
+                    {totalFechados}/{superMetaQtd}
+                  </Badge>
+                </div>
+                <div className="w-full bg-secondary/50 rounded-full h-3">
+                  <div
+                    className="h-3 rounded-full transition-all duration-500"
+                    style={{
+                      width: `${superMetaProgress}%`,
+                      background: superMetaAtingida
+                        ? "linear-gradient(90deg, #f59e0b, #d97706)"
+                        : "linear-gradient(90deg, #6b7280, #4b5563)",
+                    }}
+                  />
+                </div>
+                <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                  {meta?.meta_bonus_valor && Number(meta.meta_bonus_valor) > 0 && (
+                    <span>Bônus: R$ {Number(meta.meta_bonus_valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} por contrato</span>
+                  )}
+                  {meta?.meta_bonus_descricao && (
+                    <span className="text-amber-400 font-medium">🏆 Prêmio: {meta.meta_bonus_descricao}</span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Recent won leads */}
           {leadsGanhos.length > 0 && (

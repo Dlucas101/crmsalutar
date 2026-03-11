@@ -34,6 +34,7 @@ interface TecnicoSummary {
   totalCustos: number;
   comissaoLiquida: number;
   metaBonus: number;
+  superMetaBonus: number;
   totalReceber: number;
   detalhes: MensalidadeWithClient[];
 }
@@ -118,7 +119,10 @@ export default function Comissoes() {
   }, [leadsGanhoByTecnico]);
 
   const metaAtingida = metas ? totalLeadsGanho >= metas.quantidade_meta && metas.quantidade_meta > 0 : false;
-
+  const superMetaQtd = metas ? Number((metas as any).meta_bonus_quantidade) || 0 : 0;
+  const superMetaAtingida = superMetaQtd > 0 && totalLeadsGanho >= superMetaQtd;
+  const superMetaBonusValor = metas ? Number((metas as any).meta_bonus_valor) || 0 : 0;
+  const superMetaDescricao = metas ? (metas as any).meta_bonus_descricao as string | null : null;
   const tecnicoSummaries = useMemo(() => {
     if (!clients || !mensalidades || !profiles) return [];
 
@@ -177,6 +181,7 @@ export default function Comissoes() {
 
       const leadsGanhoCount = leadsGanhoByTecnico.get(tecId) || 0;
       const metaBonus = metaAtingida ? leadsGanhoCount * valorContratoMeta : 0;
+      const superMetaBonus = superMetaAtingida && superMetaBonusValor > 0 ? leadsGanhoCount * superMetaBonusValor : 0;
 
       summaries.push({
         id: tecId,
@@ -187,13 +192,14 @@ export default function Comissoes() {
         totalCustos,
         comissaoLiquida,
         metaBonus,
-        totalReceber: comissaoLiquida + metaBonus,
+        superMetaBonus,
+        totalReceber: comissaoLiquida + metaBonus + superMetaBonus,
         detalhes: detalhes.sort((a, b) => a.client_nome.localeCompare(b.client_nome)),
       });
     }
 
     return summaries.sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [clients, mensalidades, profiles, leads, selectedMonth, selectedYear, metas, metaAtingida, leadsGanhoByTecnico]);
+  }, [clients, mensalidades, profiles, leads, selectedMonth, selectedYear, metas, metaAtingida, superMetaAtingida, superMetaBonusValor, leadsGanhoByTecnico]);
 
   const displayedSummaries = useMemo(() => {
     let filtered = tecnicoSummaries;
@@ -219,9 +225,10 @@ export default function Comissoes() {
         totalCustos: acc.totalCustos + t.totalCustos,
         comissaoLiquida: acc.comissaoLiquida + t.comissaoLiquida,
         metaBonus: acc.metaBonus + t.metaBonus,
+        superMetaBonus: acc.superMetaBonus + t.superMetaBonus,
         totalReceber: acc.totalReceber + t.totalReceber,
       }),
-      { contratos: 0, mensalidades: 0, valorBruto: 0, totalCustos: 0, comissaoLiquida: 0, metaBonus: 0, totalReceber: 0 }
+      { contratos: 0, mensalidades: 0, valorBruto: 0, totalCustos: 0, comissaoLiquida: 0, metaBonus: 0, superMetaBonus: 0, totalReceber: 0 }
     );
   }, [displayedSummaries]);
 
@@ -288,49 +295,29 @@ export default function Comissoes() {
         )}
 
         {metas && (
-          <Badge variant={metaAtingida ? "default" : "outline"} className={metaAtingida ? "bg-chart-2 text-white" : ""}>
-            <Target className="h-3 w-3 mr-1" />
-            Meta: {totalLeadsGanho}/{metas.quantidade_meta} contratos
-            {metaAtingida ? " ✓ Atingida!" : ""}
-          </Badge>
+          <>
+            <Badge variant={metaAtingida ? "default" : "outline"} className={metaAtingida ? "bg-chart-2 text-white" : ""}>
+              <Target className="h-3 w-3 mr-1" />
+              Meta: {totalLeadsGanho}/{metas.quantidade_meta} contratos
+              {metaAtingida ? " ✓" : ""}
+            </Badge>
+            {superMetaQtd > 0 && (
+              <Badge variant={superMetaAtingida ? "default" : "outline"} className={superMetaAtingida ? "bg-amber-500 text-white" : ""}>
+                🎯 Super Meta: {totalLeadsGanho}/{superMetaQtd}
+                {superMetaAtingida ? " ✓" : ""}
+              </Badge>
+            )}
+          </>
         )}
       </div>
 
-      {/* Totals */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <FileText className="h-5 w-5 text-primary" />
             <div>
               <p className="text-xs text-muted-foreground">Contratos</p>
               <p className="text-lg font-bold text-foreground">{totals.contratos}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <Users className="h-5 w-5 text-primary" />
-            <div>
-              <p className="text-xs text-muted-foreground">Mensalidades</p>
-              <p className="text-lg font-bold text-foreground">{totals.mensalidades}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <DollarSign className="h-5 w-5 text-primary" />
-            <div>
-              <p className="text-xs text-muted-foreground">Valor Bruto</p>
-              <p className="text-lg font-bold text-foreground">{fmt(totals.valorBruto)}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <DollarSign className="h-5 w-5 text-destructive" />
-            <div>
-              <p className="text-xs text-muted-foreground">Custos</p>
-              <p className="text-lg font-bold text-foreground">{fmt(totals.totalCustos)}</p>
             </div>
           </CardContent>
         </Card>
@@ -352,6 +339,17 @@ export default function Comissoes() {
             </div>
           </CardContent>
         </Card>
+        {totals.superMetaBonus > 0 && (
+          <Card>
+            <CardContent className="p-4 flex items-center gap-3">
+              <span className="text-lg">🎯</span>
+              <div>
+                <p className="text-xs text-muted-foreground">Super Meta</p>
+                <p className="text-lg font-bold text-amber-500">{fmt(totals.superMetaBonus)}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <Wallet className="h-5 w-5 text-chart-2" />
@@ -362,6 +360,19 @@ export default function Comissoes() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Super meta prize description */}
+      {superMetaAtingida && superMetaDescricao && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <span className="text-2xl">🏆</span>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Super Meta Atingida!</p>
+              <p className="text-sm text-muted-foreground">Prêmio: {superMetaDescricao}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Per-technician cards */}
       {displayedSummaries.length === 0 ? (
@@ -401,6 +412,12 @@ export default function Comissoes() {
                         <p className="text-sm font-semibold text-primary">{fmt(tec.metaBonus)}</p>
                       </div>
                     )}
+                    {tec.superMetaBonus > 0 && (
+                      <div className="text-right hidden sm:block">
+                        <p className="text-xs text-muted-foreground">Super Meta</p>
+                        <p className="text-sm font-semibold text-amber-500">{fmt(tec.superMetaBonus)}</p>
+                      </div>
+                    )}
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">Total a Receber</p>
                       <p className="text-lg font-bold text-chart-2">{fmt(tec.totalReceber)}</p>
@@ -422,6 +439,9 @@ export default function Comissoes() {
                     <span>Comissão: {fmt(tec.comissaoLiquida)}</span>
                     {tec.metaBonus > 0 && (
                       <span className="text-primary font-semibold">Bônus Meta: {fmt(tec.metaBonus)}</span>
+                    )}
+                    {tec.superMetaBonus > 0 && (
+                      <span className="text-amber-500 font-semibold">Super Meta: {fmt(tec.superMetaBonus)}</span>
                     )}
                     <span className="font-semibold text-chart-2">Total: {fmt(tec.totalReceber)}</span>
                   </div>
