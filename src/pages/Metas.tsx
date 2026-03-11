@@ -200,6 +200,23 @@ export default function Metas() {
                     <Label>Valor por Contrato (R$)</Label>
                     <Input type="number" min="0" step="0.01" value={formValor} onChange={(e) => setFormValor(e.target.value)} placeholder="Ex: 150.00" className="bg-secondary/50" required />
                   </div>
+
+                  <div className="border-t border-border pt-4 mt-4">
+                    <p className="text-sm font-semibold text-foreground mb-3">🎯 Super Meta (Bônus)</p>
+                    <div className="space-y-2">
+                      <Label>Quantidade para Super Meta (contratos)</Label>
+                      <Input type="number" min="0" value={formBonusQtd} onChange={(e) => setFormBonusQtd(e.target.value)} placeholder="Ex: 10 (deixe 0 para desativar)" className="bg-secondary/50" />
+                    </div>
+                    <div className="space-y-2 mt-2">
+                      <Label>Valor bônus por contrato (R$) — opcional</Label>
+                      <Input type="number" min="0" step="0.01" value={formBonusValor} onChange={(e) => setFormBonusValor(e.target.value)} placeholder="Ex: 50.00 (0 se não for valor)" className="bg-secondary/50" />
+                    </div>
+                    <div className="space-y-2 mt-2">
+                      <Label>Prêmio / Descrição — opcional</Label>
+                      <Input value={formBonusDesc} onChange={(e) => setFormBonusDesc(e.target.value)} placeholder="Ex: Jantar no restaurante X" className="bg-secondary/50" />
+                    </div>
+                  </div>
+
                   <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">Salvar Meta</Button>
                 </form>
               </DialogContent>
