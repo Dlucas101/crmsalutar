@@ -122,13 +122,14 @@ export default function Comissoes() {
     const map = new Map<string, number>();
     for (const l of leads) {
       if (l.status !== "fechado_ganho" || !l.responsible_id) continue;
+      if (adminIds.has(l.responsible_id)) continue; // Admins don't participate in meta
       const d = new Date(l.updated_at);
       if (d.getMonth() + 1 === selectedMonth && d.getFullYear() === selectedYear) {
         map.set(l.responsible_id, (map.get(l.responsible_id) || 0) + 1);
       }
     }
     return map;
-  }, [leads, selectedMonth, selectedYear]);
+  }, [leads, selectedMonth, selectedYear, adminIds]);
 
   const totalLeadsGanho = useMemo(() => {
     let total = 0;
