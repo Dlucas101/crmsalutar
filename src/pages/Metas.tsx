@@ -54,6 +54,9 @@ export default function Metas() {
   const [openConfig, setOpenConfig] = useState(false);
   const [formQtd, setFormQtd] = useState("");
   const [formValor, setFormValor] = useState("");
+  const [formBonusQtd, setFormBonusQtd] = useState("");
+  const [formBonusValor, setFormBonusValor] = useState("");
+  const [formBonusDesc, setFormBonusDesc] = useState("");
 
   const fetchData = async () => {
     // Fetch meta for selected month
