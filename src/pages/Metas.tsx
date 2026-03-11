@@ -349,6 +349,45 @@ export default function Metas() {
             </CardContent>
           </Card>
 
+          {/* Super Meta card */}
+          {superMetaQtd > 0 && (
+            <Card className={`glass-panel neon-border ${superMetaAtingida ? 'ring-2 ring-amber-400/50' : ''}`}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                    🎯 Super Meta
+                    {superMetaAtingida && <Badge className="bg-amber-400/20 text-amber-400 text-xs">Atingida! 🎉</Badge>}
+                  </p>
+                  <Badge className="text-xs" style={{
+                    backgroundColor: superMetaAtingida ? "#f59e0b30" : "#6b728030",
+                    color: superMetaAtingida ? "#f59e0b" : "#6b7280",
+                  }}>
+                    {totalFechados}/{superMetaQtd}
+                  </Badge>
+                </div>
+                <div className="w-full bg-secondary/50 rounded-full h-3">
+                  <div
+                    className="h-3 rounded-full transition-all duration-500"
+                    style={{
+                      width: `${superMetaProgress}%`,
+                      background: superMetaAtingida
+                        ? "linear-gradient(90deg, #f59e0b, #d97706)"
+                        : "linear-gradient(90deg, #6b7280, #4b5563)",
+                    }}
+                  />
+                </div>
+                <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                  {meta?.meta_bonus_valor && Number(meta.meta_bonus_valor) > 0 && (
+                    <span>Bônus: R$ {Number(meta.meta_bonus_valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} por contrato</span>
+                  )}
+                  {meta?.meta_bonus_descricao && (
+                    <span className="text-amber-400 font-medium">🏆 Prêmio: {meta.meta_bonus_descricao}</span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Recent won leads */}
           {leadsGanhos.length > 0 && (
             <Card className="glass-panel neon-border">
