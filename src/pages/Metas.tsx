@@ -102,7 +102,8 @@ export default function Metas() {
       .eq("status", "fechado_ganho")
       .gte("updated_at", startDate)
       .lte("updated_at", endDate);
-    setLeadsGanhos((leads || []) as LeadGanho[]);
+    const nonAdminLeads = (leads || []).filter((l: any) => !adminIdSet.has(l.responsible_id));
+    setLeadsGanhos(nonAdminLeads as LeadGanho[]);
   };
 
   useEffect(() => { fetchData(); }, [selectedMonth, selectedYear]);
