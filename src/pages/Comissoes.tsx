@@ -412,6 +412,12 @@ export default function Comissoes() {
                         <p className="text-sm font-semibold text-primary">{fmt(tec.metaBonus)}</p>
                       </div>
                     )}
+                    {tec.superMetaBonus > 0 && (
+                      <div className="text-right hidden sm:block">
+                        <p className="text-xs text-muted-foreground">Super Meta</p>
+                        <p className="text-sm font-semibold text-amber-500">{fmt(tec.superMetaBonus)}</p>
+                      </div>
+                    )}
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">Total a Receber</p>
                       <p className="text-lg font-bold text-chart-2">{fmt(tec.totalReceber)}</p>
