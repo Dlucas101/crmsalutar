@@ -303,7 +303,7 @@ export default function Comissoes() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos os técnicos</SelectItem>
-              {(profiles || []).map((p) => (
+              {nonAdminProfiles.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.nome}
                 </SelectItem>
