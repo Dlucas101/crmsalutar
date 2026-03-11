@@ -17,6 +17,9 @@ interface Meta {
   ano: number;
   quantidade_meta: number;
   valor_contrato: number;
+  meta_bonus_quantidade: number | null;
+  meta_bonus_valor: number | null;
+  meta_bonus_descricao: string | null;
 }
 
 interface Profile {
