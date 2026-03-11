@@ -225,9 +225,10 @@ export default function Comissoes() {
         totalCustos: acc.totalCustos + t.totalCustos,
         comissaoLiquida: acc.comissaoLiquida + t.comissaoLiquida,
         metaBonus: acc.metaBonus + t.metaBonus,
+        superMetaBonus: acc.superMetaBonus + t.superMetaBonus,
         totalReceber: acc.totalReceber + t.totalReceber,
       }),
-      { contratos: 0, mensalidades: 0, valorBruto: 0, totalCustos: 0, comissaoLiquida: 0, metaBonus: 0, totalReceber: 0 }
+      { contratos: 0, mensalidades: 0, valorBruto: 0, totalCustos: 0, comissaoLiquida: 0, metaBonus: 0, superMetaBonus: 0, totalReceber: 0 }
     );
   }, [displayedSummaries]);
 
