@@ -142,10 +142,10 @@ export default function Comissoes() {
   const superMetaBonusValor = metas ? Number((metas as any).meta_bonus_valor) || 0 : 0;
   const superMetaDescricao = metas ? (metas as any).meta_bonus_descricao as string | null : null;
   const tecnicoSummaries = useMemo(() => {
-    if (!clients || !mensalidades || !profiles) return [];
+    if (!clients || !mensalidades || !nonAdminProfiles.length) return [];
 
     const leadsMap = new Map((leads || []).map((l) => [l.id, l.responsible_id]));
-    const profilesMap = new Map(profiles.map((p) => [p.id, p.nome]));
+    const profilesMap = new Map(nonAdminProfiles.map((p) => [p.id, p.nome]));
 
     const clientMap = new Map(
       clients.map((c) => {
