@@ -141,6 +141,11 @@ export default function Metas() {
   const faltamFechar = Math.max(0, metaQtd - totalFechados);
   const progressPercent = metaQtd > 0 ? Math.min(100, (totalFechados / metaQtd) * 100) : 0;
 
+  // Super meta
+  const superMetaQtd = meta?.meta_bonus_quantidade || 0;
+  const superMetaAtingida = superMetaQtd > 0 && totalFechados >= superMetaQtd;
+  const superMetaProgress = superMetaQtd > 0 ? Math.min(100, (totalFechados / superMetaQtd) * 100) : 0;
+
   // Per member breakdown
   const memberStats = members.map((m) => {
     const memberLeads = leadsGanhos.filter((l) => l.responsible_id === m.id);
