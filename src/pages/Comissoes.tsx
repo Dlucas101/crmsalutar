@@ -119,7 +119,10 @@ export default function Comissoes() {
   }, [leadsGanhoByTecnico]);
 
   const metaAtingida = metas ? totalLeadsGanho >= metas.quantidade_meta && metas.quantidade_meta > 0 : false;
-
+  const superMetaQtd = metas ? Number((metas as any).meta_bonus_quantidade) || 0 : 0;
+  const superMetaAtingida = superMetaQtd > 0 && totalLeadsGanho >= superMetaQtd;
+  const superMetaBonusValor = metas ? Number((metas as any).meta_bonus_valor) || 0 : 0;
+  const superMetaDescricao = metas ? (metas as any).meta_bonus_descricao as string | null : null;
   const tecnicoSummaries = useMemo(() => {
     if (!clients || !mensalidades || !profiles) return [];
 
