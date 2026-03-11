@@ -106,18 +106,26 @@ export default function Metas() {
     const valor = parseFloat(formValor) || 0;
     if (qtd <= 0) { toast.error("Informe a quantidade da meta"); return; }
 
+    const bonusQtd = parseInt(formBonusQtd) || 0;
+    const bonusValor = parseFloat(formBonusValor) || 0;
+    const bonusDesc = formBonusDesc.trim() || null;
+
+    const payload = {
+      quantidade_meta: qtd,
+      valor_contrato: valor,
+      meta_bonus_quantidade: bonusQtd > 0 ? bonusQtd : 0,
+      meta_bonus_valor: bonusValor,
+      meta_bonus_descricao: bonusDesc,
+    };
+
     if (meta) {
-      const { error } = await supabase.from("metas").update({
-        quantidade_meta: qtd,
-        valor_contrato: valor,
-      }).eq("id", meta.id);
+      const { error } = await supabase.from("metas").update(payload).eq("id", meta.id);
       if (error) { toast.error("Erro ao atualizar meta"); return; }
     } else {
       const { error } = await supabase.from("metas").insert({
         mes: selectedMonth,
         ano: selectedYear,
-        quantidade_meta: qtd,
-        valor_contrato: valor,
+        ...payload,
       });
       if (error) { toast.error("Erro ao criar meta"); return; }
     }
