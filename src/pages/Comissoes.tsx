@@ -295,11 +295,19 @@ export default function Comissoes() {
         )}
 
         {metas && (
-          <Badge variant={metaAtingida ? "default" : "outline"} className={metaAtingida ? "bg-chart-2 text-white" : ""}>
-            <Target className="h-3 w-3 mr-1" />
-            Meta: {totalLeadsGanho}/{metas.quantidade_meta} contratos
-            {metaAtingida ? " ✓ Atingida!" : ""}
-          </Badge>
+          <>
+            <Badge variant={metaAtingida ? "default" : "outline"} className={metaAtingida ? "bg-chart-2 text-white" : ""}>
+              <Target className="h-3 w-3 mr-1" />
+              Meta: {totalLeadsGanho}/{metas.quantidade_meta} contratos
+              {metaAtingida ? " ✓" : ""}
+            </Badge>
+            {superMetaQtd > 0 && (
+              <Badge variant={superMetaAtingida ? "default" : "outline"} className={superMetaAtingida ? "bg-amber-500 text-white" : ""}>
+                🎯 Super Meta: {totalLeadsGanho}/{superMetaQtd}
+                {superMetaAtingida ? " ✓" : ""}
+              </Badge>
+            )}
+          </>
         )}
       </div>
 
