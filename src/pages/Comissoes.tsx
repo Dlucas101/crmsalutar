@@ -440,6 +440,9 @@ export default function Comissoes() {
                     {tec.metaBonus > 0 && (
                       <span className="text-primary font-semibold">Bônus Meta: {fmt(tec.metaBonus)}</span>
                     )}
+                    {tec.superMetaBonus > 0 && (
+                      <span className="text-amber-500 font-semibold">Super Meta: {fmt(tec.superMetaBonus)}</span>
+                    )}
                     <span className="font-semibold text-chart-2">Total: {fmt(tec.totalReceber)}</span>
                   </div>
                   <Table>
