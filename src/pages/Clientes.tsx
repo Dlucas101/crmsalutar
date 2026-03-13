@@ -26,6 +26,8 @@ interface Client {
   mensalidades_pagas: number | null;
   responsavel_id: string | null;
   historico: boolean | null;
+  dividir_contrato: boolean | null;
+  parceiro_id: string | null;
   created_at: string;
 }
 
@@ -56,6 +58,8 @@ export default function Clientes() {
   const [editValues, setEditValues] = useState({
     valor_negociado: "", valor_custo: "", valor_ate_vencimento: "", valor_pago: "",
   });
+  const [editDividir, setEditDividir] = useState(false);
+  const [editParceiroId, setEditParceiroId] = useState<string | null>(null);
 
   const fetchData = async () => {
     const [clientsRes, membersRes, mensRes] = await Promise.all([
@@ -96,11 +100,11 @@ export default function Clientes() {
 
   const myClients = isAdmin
     ? clients
-    : clients.filter(c => getRespId(c) === user?.id);
+    : clients.filter(c => getRespId(c) === user?.id || c.parceiro_id === user?.id);
 
   const filteredClients = filterMember === "all"
     ? myClients
-    : myClients.filter(c => getRespId(c) === filterMember);
+    : myClients.filter(c => getRespId(c) === filterMember || c.parceiro_id === filterMember);
 
   const activeClients = filteredClients.filter(c => !c.historico);
   const historyClients = filteredClients.filter(c => !!c.historico);
@@ -121,6 +125,8 @@ export default function Clientes() {
       valor_ate_vencimento: String(c.valor_ate_vencimento ?? ""),
       valor_pago: String(c.valor_pago ?? ""),
     });
+    setEditDividir(!!c.dividir_contrato);
+    setEditParceiroId(c.parceiro_id || null);
   };
 
   const handleSave = async () => {
@@ -130,7 +136,9 @@ export default function Clientes() {
       valor_custo: Number(editValues.valor_custo) || 0,
       valor_ate_vencimento: Number(editValues.valor_ate_vencimento) || 0,
       valor_pago: Number(editValues.valor_pago) || 0,
-    }).eq("id", editClient.id);
+      dividir_contrato: editDividir,
+      parceiro_id: editDividir ? editParceiroId : null,
+    } as any).eq("id", editClient.id);
     if (error) { toast.error("Erro ao salvar"); return; }
     toast.success("Valores atualizados!");
     setEditClient(null);
@@ -161,6 +169,7 @@ export default function Clientes() {
             key={c.id}
             client={c}
             responsavelNome={getMemberName(getRespId(c))}
+            parceiroNome={c.dividir_contrato && c.parceiro_id ? getMemberName(c.parceiro_id) : undefined}
             mensalidades={mensalidadesMap[c.id] || []}
             selected={showSelection ? selectedClientIds.has(c.id) : undefined}
             onToggleSelect={showSelection ? () => toggleSelect(c.id) : undefined}
@@ -217,6 +226,12 @@ export default function Clientes() {
         onChange={setEditValues}
         onSave={handleSave}
         onClose={() => setEditClient(null)}
+        dividirContrato={editDividir}
+        onDividirContratoChange={setEditDividir}
+        parceiroId={editParceiroId}
+        onParceiroIdChange={setEditParceiroId}
+        members={members}
+        currentResponsavelId={editClient ? getRespId(editClient) : null}
       />
 
       {mensalidadesClient && (
