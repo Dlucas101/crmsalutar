@@ -51,7 +51,7 @@ export default function Comissoes() {
   const { data: clients } = useQuery({
     queryKey: ["comissoes-clients"],
     queryFn: async () => {
-      const { data } = await supabase.from("clients").select("id, nome, responsavel_id, valor_custo, lead_id");
+      const { data } = await supabase.from("clients").select("id, nome, responsavel_id, valor_custo, lead_id, dividir_contrato, parceiro_id");
       return data || [];
     },
   });
