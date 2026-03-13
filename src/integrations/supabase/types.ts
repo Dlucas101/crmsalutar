@@ -48,6 +48,7 @@ export type Database = {
         Row: {
           cnpj_cpf: string | null
           created_at: string
+          dividir_contrato: boolean | null
           email: string | null
           endereco: string | null
           historico: boolean | null
@@ -55,6 +56,7 @@ export type Database = {
           lead_id: string | null
           mensalidades_pagas: number | null
           nome: string
+          parceiro_id: string | null
           responsavel_id: string | null
           updated_at: string
           valor_ate_vencimento: number | null
@@ -66,6 +68,7 @@ export type Database = {
         Insert: {
           cnpj_cpf?: string | null
           created_at?: string
+          dividir_contrato?: boolean | null
           email?: string | null
           endereco?: string | null
           historico?: boolean | null
@@ -73,6 +76,7 @@ export type Database = {
           lead_id?: string | null
           mensalidades_pagas?: number | null
           nome: string
+          parceiro_id?: string | null
           responsavel_id?: string | null
           updated_at?: string
           valor_ate_vencimento?: number | null
@@ -84,6 +88,7 @@ export type Database = {
         Update: {
           cnpj_cpf?: string | null
           created_at?: string
+          dividir_contrato?: boolean | null
           email?: string | null
           endereco?: string | null
           historico?: boolean | null
@@ -91,6 +96,7 @@ export type Database = {
           lead_id?: string | null
           mensalidades_pagas?: number | null
           nome?: string
+          parceiro_id?: string | null
           responsavel_id?: string | null
           updated_at?: string
           valor_ate_vencimento?: number | null

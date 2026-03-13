@@ -49,7 +49,7 @@ export default function Metas() {
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [meta, setMeta] = useState<Meta | null>(null);
   const [members, setMembers] = useState<Profile[]>([]);
-  const [adminIds, setAdminIds] = useState<string[]>([]);
+  const [adminIdSet, setAdminIdSet] = useState<Set<string>>(new Set());
   const [leadsGanhos, setLeadsGanhos] = useState<LeadGanho[]>([]);
   const [openConfig, setOpenConfig] = useState(false);
   const [formQtd, setFormQtd] = useState("");
@@ -82,18 +82,22 @@ export default function Metas() {
       setFormBonusDesc("");
     }
 
+    // Fetch ALL user_roles to determine admins
+    const { data: allRoles } = await supabase.from("user_roles").select("user_id, role");
+    const adminSet = new Set<string>();
+    (allRoles || []).forEach((r) => {
+      if (r.role === "admin" || r.role === "gestor") {
+        adminSet.add(r.user_id);
+      }
+    });
+    setAdminIdSet(adminSet);
+
     // Fetch members (non-admin/gestor)
     const { data: allMembers } = await supabase.from("profiles").select("id, nome, cor");
-    const { data: adminRoles } = await supabase
-      .from("user_roles")
-      .select("user_id")
-      .in("role", ["admin", "gestor"]);
-    const adminIdSet = new Set((adminRoles || []).map((r) => r.user_id));
-    setAdminIds(Array.from(adminIdSet));
-    const nonAdminMembers = (allMembers || []).filter((m) => !adminIdSet.has(m.id));
+    const nonAdminMembers = (allMembers || []).filter((m) => !adminSet.has(m.id));
     setMembers(nonAdminMembers);
 
-    // Fetch leads won in selected month/year
+    // Fetch leads won in selected month/year (only from non-admin members)
     const startDate = new Date(selectedYear, selectedMonth - 1, 1).toISOString();
     const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59).toISOString();
     const { data: leads } = await supabase
@@ -102,7 +106,7 @@ export default function Metas() {
       .eq("status", "fechado_ganho")
       .gte("updated_at", startDate)
       .lte("updated_at", endDate);
-    const nonAdminLeads = (leads || []).filter((l: any) => !adminIdSet.has(l.responsible_id));
+    const nonAdminLeads = (leads || []).filter((l: any) => l.responsible_id && !adminSet.has(l.responsible_id));
     setLeadsGanhos(nonAdminLeads as LeadGanho[]);
   };
 
@@ -154,13 +158,15 @@ export default function Metas() {
   const superMetaAtingida = superMetaQtd > 0 && totalFechados >= superMetaQtd;
   const superMetaProgress = superMetaQtd > 0 ? Math.min(100, (totalFechados / superMetaQtd) * 100) : 0;
 
-  // Per member breakdown
-  const memberStats = members.map((m) => {
-    const memberLeads = leadsGanhos.filter((l) => l.responsible_id === m.id);
-    const count = memberLeads.length;
-    const totalValor = memberLeads.reduce((sum, l) => sum + (Number(l.valor_contrato) || metaValor), 0);
-    return { ...m, count, totalValor };
-  }).sort((a, b) => b.count - a.count);
+  // Per member breakdown - extra safety filter
+  const memberStats = members
+    .filter((m) => !adminIdSet.has(m.id))
+    .map((m) => {
+      const memberLeads = leadsGanhos.filter((l) => l.responsible_id === m.id);
+      const count = memberLeads.length;
+      const totalValor = memberLeads.reduce((sum, l) => sum + (Number(l.valor_contrato) || metaValor), 0);
+      return { ...m, count, totalValor };
+    }).sort((a, b) => b.count - a.count);
 
   const totalValorGeral = leadsGanhos.reduce((sum, l) => sum + (Number(l.valor_contrato) || metaValor), 0);
 

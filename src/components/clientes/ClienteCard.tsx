@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Mail, Phone, Building2, DollarSign, User, Pencil, CreditCard, Archive } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Mail, Phone, Building2, DollarSign, User, Pencil, CreditCard, Archive, Users } from "lucide-react";
 
 interface Mensalidade {
   id: string;
@@ -25,11 +26,14 @@ interface Client {
   responsavel_id: string | null;
   lead_id: string | null;
   historico?: boolean | null;
+  dividir_contrato?: boolean | null;
+  parceiro_id?: string | null;
 }
 
 interface Props {
   client: Client;
   responsavelNome: string;
+  parceiroNome?: string;
   mensalidades: Mensalidade[];
   selected?: boolean;
   onToggleSelect?: () => void;
@@ -40,13 +44,14 @@ interface Props {
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-export default function ClienteCard({ client, responsavelNome, mensalidades, selected, onToggleSelect, onEdit, onMensalidades, onMoveToHistory }: Props) {
+export default function ClienteCard({ client, responsavelNome, parceiroNome, mensalidades, selected, onToggleSelect, onEdit, onMensalidades, onMoveToHistory }: Props) {
   const valorNeg = Number(client.valor_negociado) || 0;
   const valorVenc = Number(client.valor_ate_vencimento) || 0;
   const valorCusto = Number(client.valor_custo) || 0;
   const valorPago = Number(client.valor_pago) || 0;
   const valorFinal = valorPago - valorCusto;
   const canMoveToHistory = (client.mensalidades_pagas ?? 0) >= 3 && !client.historico;
+  const isDividido = !!client.dividir_contrato && !!client.parceiro_id;
 
   return (
     <Card className="glass-panel neon-border hover:border-primary/30 transition-colors">
@@ -55,7 +60,15 @@ export default function ClienteCard({ client, responsavelNome, mensalidades, sel
           {selected !== undefined && (
             <Checkbox checked={selected} onCheckedChange={onToggleSelect} />
           )}
-          <CardTitle className="text-base font-semibold text-foreground">{client.nome}</CardTitle>
+          <div>
+            <CardTitle className="text-base font-semibold text-foreground">{client.nome}</CardTitle>
+            {isDividido && (
+              <Badge variant="outline" className="text-[10px] mt-1 border-primary/30 text-primary">
+                <Users className="h-2.5 w-2.5 mr-1" />
+                Contrato dividido
+              </Badge>
+            )}
+          </div>
         </div>
         <div className="flex gap-1">
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMensalidades(client)} title="Mensalidades">
@@ -71,6 +84,12 @@ export default function ClienteCard({ client, responsavelNome, mensalidades, sel
           <User className="h-3.5 w-3.5 text-primary" />
           <span className="font-medium text-foreground">{responsavelNome}</span>
         </div>
+        {isDividido && parceiroNome && (
+          <div className="flex items-center gap-2">
+            <Users className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs text-muted-foreground">Parceiro: <span className="font-medium text-foreground">{parceiroNome}</span></span>
+          </div>
+        )}
         {client.cnpj_cpf && (
           <div className="flex items-center gap-2">
             <Building2 className="h-3.5 w-3.5" />
@@ -117,6 +136,15 @@ export default function ClienteCard({ client, responsavelNome, mensalidades, sel
             </span>
             <span className={valorFinal >= 0 ? "text-green-400" : "text-destructive"}>{fmt(valorFinal)}</span>
           </div>
+          {isDividido && (
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                Lucro por membro (50%)
+              </span>
+              <span className="font-medium text-foreground">{fmt(valorFinal / 2)}</span>
+            </div>
+          )}
 
           {/* Mensalidades com lucro individual */}
           <div className="border-t border-border/30 pt-1 mt-1 space-y-1">
@@ -144,7 +172,7 @@ export default function ClienteCard({ client, responsavelNome, mensalidades, sel
                   </div>
                   {lucro !== null && (
                     <span className={`font-medium ${lucro >= 0 ? "text-green-400" : "text-destructive"}`}>
-                      Lucro: {fmt(lucro)}
+                      Lucro: {fmt(isDividido ? lucro / 2 : lucro)}
                     </span>
                   )}
                 </div>

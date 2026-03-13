@@ -51,7 +51,7 @@ export default function Comissoes() {
   const { data: clients } = useQuery({
     queryKey: ["comissoes-clients"],
     queryFn: async () => {
-      const { data } = await supabase.from("clients").select("id, nome, responsavel_id, valor_custo, lead_id");
+      const { data } = await supabase.from("clients").select("id, nome, responsavel_id, valor_custo, lead_id, dividir_contrato, parceiro_id");
       return data || [];
     },
   });
@@ -171,22 +171,38 @@ export default function Comissoes() {
 
       const custo = Number(client.valor_custo) || 0;
       const valor = Number(m.valor);
-      const comissao = valor - custo;
+      const isDividido = !!(client as any).dividir_contrato && !!(client as any).parceiro_id;
+      const comissao = isDividido ? (valor - custo) / 2 : valor - custo;
 
       const entry: MensalidadeWithClient = {
         id: m.id,
         client_id: m.client_id,
-        client_nome: client.nome,
+        client_nome: client.nome + (isDividido ? " (50%)" : ""),
         numero_mensalidade: m.numero_mensalidade,
         data_pagamento: m.data_pagamento,
-        valor,
-        valor_custo: custo,
+        valor: isDividido ? valor / 2 : valor,
+        valor_custo: isDividido ? custo / 2 : custo,
         responsavel_id: tecId,
         comissao,
       };
 
       if (!byTecnico.has(tecId)) byTecnico.set(tecId, []);
       byTecnico.get(tecId)!.push(entry);
+
+      // If contract is split, also add entry for the partner
+      if (isDividido) {
+        const partnerId = (client as any).parceiro_id as string;
+        if (partnerId && partnerId !== tecId) {
+          const partnerEntry: MensalidadeWithClient = {
+            ...entry,
+            id: m.id + "-partner",
+            client_nome: client.nome + " (50%)",
+            responsavel_id: partnerId,
+          };
+          if (!byTecnico.has(partnerId)) byTecnico.set(partnerId, []);
+          byTecnico.get(partnerId)!.push(partnerEntry);
+        }
+      }
     }
 
     const valorContratoMeta = metas ? Number(metas.valor_contrato) : 0;

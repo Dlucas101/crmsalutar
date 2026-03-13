@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Tag, Users, UserPlus, Pencil, KeyRound } from "lucide-react";
+import { Tag, Users, UserPlus, Pencil, KeyRound, Mail } from "lucide-react";
 import { toast } from "sonner";
 
 interface Profile {
@@ -40,6 +40,7 @@ export default function Membros() {
   // Edit states
   const [editMember, setEditMember] = useState<Profile | null>(null);
   const [editForm, setEditForm] = useState({ nome: "", email: "", password: "" });
+  const [editCurrentEmail, setEditCurrentEmail] = useState("");
   const [openEdit, setOpenEdit] = useState(false);
 
   // Self password change
@@ -113,10 +114,19 @@ export default function Membros() {
     fetchAll();
   };
 
-  const handleOpenEdit = (member: Profile) => {
+  const handleOpenEdit = async (member: Profile) => {
     setEditMember(member);
     setEditForm({ nome: member.nome || "", email: "", password: "" });
+    setEditCurrentEmail("");
     setOpenEdit(true);
+
+    // Fetch current email via edge function
+    const { data } = await supabase.functions.invoke("admin-update-user", {
+      body: { user_id: member.id, action: "get_email" },
+    });
+    if (data?.email) {
+      setEditCurrentEmail(data.email);
+    }
   };
 
   const handleAdminEdit = async (e: React.FormEvent) => {
@@ -351,7 +361,16 @@ export default function Membros() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Novo Email (deixe vazio para manter)</Label>
+              <Label className="flex items-center gap-1.5">
+                <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                Email atual
+              </Label>
+              <p className="text-sm text-foreground bg-secondary/30 rounded-md px-3 py-2 border border-border/50">
+                {editCurrentEmail || "Carregando..."}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Novo Email <span className="text-muted-foreground font-normal">(deixe vazio para manter)</span></Label>
               <Input
                 type="email"
                 value={editForm.email}
@@ -361,7 +380,7 @@ export default function Membros() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Nova Senha (deixe vazio para manter)</Label>
+              <Label>Nova Senha <span className="text-muted-foreground font-normal">(deixe vazio para manter)</span></Label>
               <Input
                 type="password"
                 value={editForm.password}
