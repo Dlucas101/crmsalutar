@@ -34,10 +34,19 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Apenas administradores podem realizar esta ação" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const { user_id, password, nome, email } = await req.json();
+    const { user_id, password, nome, email, action } = await req.json();
 
     if (!user_id) {
       return new Response(JSON.stringify({ error: "user_id é obrigatório" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Action: get_email - just return the user's current email
+    if (action === "get_email") {
+      const { data: { user: targetUser }, error } = await supabaseAdmin.auth.admin.getUserById(user_id);
+      if (error || !targetUser) {
+        return new Response(JSON.stringify({ error: "Usuário não encontrado" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ email: targetUser.email }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Update auth fields (password and/or email)
