@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN participa_comissao boolean DEFAULT true;

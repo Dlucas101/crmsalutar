@@ -308,6 +308,7 @@ export type Database = {
           custom_role_id: string | null
           id: string
           nome: string
+          participa_comissao: boolean | null
           updated_at: string
         }
         Insert: {
@@ -317,6 +318,7 @@ export type Database = {
           custom_role_id?: string | null
           id: string
           nome?: string
+          participa_comissao?: boolean | null
           updated_at?: string
         }
         Update: {
@@ -326,6 +328,7 @@ export type Database = {
           custom_role_id?: string | null
           id?: string
           nome?: string
+          participa_comissao?: boolean | null
           updated_at?: string
         }
         Relationships: [
