@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Trophy, Target, TrendingUp, Users, Settings, DollarSign } from "lucide-react";
+import { Trophy, Target, TrendingUp, Users, Settings, DollarSign, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 interface Meta {
   id: string;
@@ -36,10 +37,19 @@ interface LeadGanho {
   updated_at: string;
 }
 
+interface HistoryEntry {
+  label: string;
+  meta: number;
+  fechados: number;
+  atingida: boolean;
+}
+
 const MONTHS = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
+
+const MONTHS_SHORT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export default function Metas() {
   const { role } = useAuth();
@@ -49,7 +59,6 @@ export default function Metas() {
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [meta, setMeta] = useState<Meta | null>(null);
   const [members, setMembers] = useState<Profile[]>([]);
-  const [adminIdSet, setAdminIdSet] = useState<Set<string>>(new Set());
   const [leadsGanhos, setLeadsGanhos] = useState<LeadGanho[]>([]);
   const [openConfig, setOpenConfig] = useState(false);
   const [formQtd, setFormQtd] = useState("");
@@ -57,6 +66,7 @@ export default function Metas() {
   const [formBonusQtd, setFormBonusQtd] = useState("");
   const [formBonusValor, setFormBonusValor] = useState("");
   const [formBonusDesc, setFormBonusDesc] = useState("");
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   const fetchData = async () => {
     // Fetch meta for selected month
@@ -82,22 +92,13 @@ export default function Metas() {
       setFormBonusDesc("");
     }
 
-    // Fetch ALL user_roles to determine admins
-    const { data: allRoles } = await supabase.from("user_roles").select("user_id, role");
-    const adminSet = new Set<string>();
-    (allRoles || []).forEach((r) => {
-      if (r.role === "admin" || r.role === "gestor") {
-        adminSet.add(r.user_id);
-      }
-    });
-    setAdminIdSet(adminSet);
+    // Fetch members with participa_comissao = true
+    const { data: allMembers } = await supabase.from("profiles").select("id, nome, cor, participa_comissao");
+    const participatingMembers = (allMembers || []).filter((m: any) => m.participa_comissao !== false);
+    setMembers(participatingMembers);
+    const participatingIds = new Set(participatingMembers.map((m) => m.id));
 
-    // Fetch members (non-admin/gestor)
-    const { data: allMembers } = await supabase.from("profiles").select("id, nome, cor");
-    const nonAdminMembers = (allMembers || []).filter((m) => !adminSet.has(m.id));
-    setMembers(nonAdminMembers);
-
-    // Fetch leads won in selected month/year (only from non-admin members)
+    // Fetch leads won in selected month/year (only from participating members)
     const startDate = new Date(selectedYear, selectedMonth - 1, 1).toISOString();
     const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59).toISOString();
     const { data: leads } = await supabase
@@ -106,11 +107,46 @@ export default function Metas() {
       .eq("status", "fechado_ganho")
       .gte("updated_at", startDate)
       .lte("updated_at", endDate);
-    const nonAdminLeads = (leads || []).filter((l: any) => l.responsible_id && !adminSet.has(l.responsible_id));
-    setLeadsGanhos(nonAdminLeads as LeadGanho[]);
+    const filteredLeads = (leads || []).filter((l: any) => l.responsible_id && participatingIds.has(l.responsible_id));
+    setLeadsGanhos(filteredLeads as LeadGanho[]);
+  };
+
+  const fetchHistory = async () => {
+    // Fetch last 6 months of metas history
+    const entries: HistoryEntry[] = [];
+    const { data: allMetas } = await supabase.from("metas").select("*").order("ano", { ascending: true }).order("mes", { ascending: true });
+    const { data: allProfiles } = await supabase.from("profiles").select("id, participa_comissao");
+    const participatingIds = new Set((allProfiles || []).filter((p: any) => p.participa_comissao !== false).map((p) => p.id));
+    const { data: allLeads } = await supabase.from("leads").select("responsible_id, updated_at, status").eq("status", "fechado_ganho");
+
+    // Build last 6 months
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const m = d.getMonth() + 1;
+      const y = d.getFullYear();
+      const metaForMonth = (allMetas || []).find((mt: any) => mt.mes === m && mt.ano === y);
+      const metaQtd = metaForMonth ? (metaForMonth as any).quantidade_meta : 0;
+      
+      const startDate = new Date(y, m - 1, 1);
+      const endDate = new Date(y, m, 0, 23, 59, 59);
+      const fechados = (allLeads || []).filter((l: any) => {
+        if (!l.responsible_id || !participatingIds.has(l.responsible_id)) return false;
+        const updated = new Date(l.updated_at);
+        return updated >= startDate && updated <= endDate;
+      }).length;
+
+      entries.push({
+        label: `${MONTHS_SHORT[m - 1]}/${String(y).slice(2)}`,
+        meta: metaQtd,
+        fechados,
+        atingida: metaQtd > 0 && fechados >= metaQtd,
+      });
+    }
+    setHistory(entries);
   };
 
   useEffect(() => { fetchData(); }, [selectedMonth, selectedYear]);
+  useEffect(() => { fetchHistory(); }, []);
 
   const handleSaveMeta = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,6 +180,7 @@ export default function Metas() {
     toast.success("Meta salva!");
     setOpenConfig(false);
     fetchData();
+    fetchHistory();
   };
 
   // Calculations
@@ -158,9 +195,8 @@ export default function Metas() {
   const superMetaAtingida = superMetaQtd > 0 && totalFechados >= superMetaQtd;
   const superMetaProgress = superMetaQtd > 0 ? Math.min(100, (totalFechados / superMetaQtd) * 100) : 0;
 
-  // Per member breakdown - extra safety filter
+  // Per member breakdown
   const memberStats = members
-    .filter((m) => !adminIdSet.has(m.id))
     .map((m) => {
       const memberLeads = leadsGanhos.filter((l) => l.responsible_id === m.id);
       const count = memberLeads.length;
@@ -436,6 +472,56 @@ export default function Metas() {
             </Card>
           )}
         </>
+      )}
+
+      {/* Goals History Chart */}
+      {history.length > 0 && (
+        <Card className="glass-panel neon-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-primary" />
+              Histórico de Metas (últimos 6 meses)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={history} barGap={4}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="label" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "8px",
+                    color: "hsl(var(--foreground))",
+                  }}
+                  formatter={(value: number, name: string) => [value, name === "meta" ? "Meta" : "Fechados"]}
+                />
+                <Bar dataKey="meta" name="Meta" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.4} />
+                <Bar dataKey="fechados" name="Fechados" radius={[4, 4, 0, 0]}>
+                  {history.map((entry, index) => (
+                    <Cell key={index} fill={entry.atingida ? "#22c55e" : entry.meta > 0 ? "#ef4444" : "#6b7280"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground justify-center">
+              <div className="flex items-center gap-1.5">
+                <div className="h-2.5 w-2.5 rounded-sm bg-[#22c55e]" />
+                <span>Meta atingida</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-2.5 w-2.5 rounded-sm bg-[#ef4444]" />
+                <span>Meta não atingida</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-2.5 w-2.5 rounded-sm bg-muted-foreground/40" />
+                <span>Meta definida</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

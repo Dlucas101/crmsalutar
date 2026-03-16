@@ -1,60 +1,62 @@
 
 
-## Plano: Checkbox "Participa da Comissão" + Relatório Mensal PDF/Excel + Histórico de Metas + Correção tema claro
+## Plano de Ajustes na Tela de Clientes
 
-### 1. Checkbox "Participa da Comissão" na tabela profiles
+### Resumo das Mudanças
 
-**Banco de dados:**
-- Migração: `ALTER TABLE profiles ADD COLUMN participa_comissao boolean DEFAULT true`
+Quatro ajustes principais: (1) mostrar lucro por mensalidade no card, (2) adicionar seleção de clientes com totalização dinâmica no resumo financeiro, (3) mudar regra de histórico para botão manual na 3a mensalidade, (4) remover campo "Mensalidades pagas" do diálogo de edição.
 
-**Membros (`src/pages/Membros.tsx`):**
-- Adicionar Switch "Participa da comissão" no card de cada membro (visível só para admin)
-- Ao alterar, faz update na tabela profiles
+---
 
-**Metas (`src/pages/Metas.tsx`):**
-- Substituir filtragem por `user_roles` (admin/gestor) por `WHERE participa_comissao = true`
-- Buscar profiles com `participa_comissao` e filtrar membros e leads com base nisso
+### 1. Lucro por mensalidade no ClienteCard
 
-**Comissões (`src/pages/Comissoes.tsx`):**
-- Mesma substituição: filtrar por `participa_comissao = true` em vez de verificar roles
-- Bônus de meta/super meta apenas para participantes
+No `ClienteCard`, para cada mensalidade paga, exibir o lucro individual: `valor da mensalidade - custo do sistema`. Isso requer buscar as mensalidades do cliente. Duas opções: buscar no componente pai e passar como prop, ou exibir apenas o total. A abordagem mais limpa é carregar as mensalidades na página `Clientes.tsx` e passar para o card.
 
-**Dashboard (`src/pages/Dashboard.tsx`):**
-- Atualizar filtro de metas para usar `participa_comissao`
+- **Clientes.tsx**: Fetch da tabela `mensalidades` para todos os clientes e armazenar em um Map `clientId → Mensalidade[]`
+- **ClienteCard**: Receber `mensalidades` como prop e exibir, ao lado de cada badge (1ª, 2ª, 3ª), o valor pago e o lucro (`valor_mens - custo_sistema`)
 
-### 2. Relatório Mensal Exportável (PDF + Excel)
+### 2. Seleção de clientes + totalização dinâmica no FinancialSummary
 
-**Relatórios (`src/pages/Relatorios.tsx`):**
-- Adicionar novo tipo de relatório: "Fechamento Mensal"
-- Seletor de mês/ano
-- Busca comissões, metas e desempenho por membro participante
-- Exportação Excel: planilha com colunas (Membro, Contratos, Comissão, Bônus Meta, Bônus Super Meta, Total)
-- Exportação PDF: usar `jspdf` + `jspdf-autotable` para gerar PDF formatado com tabela e resumo
-- Instalar dependência: `jspdf` e `jspdf-autotable`
+- **Clientes.tsx**: Adicionar state `selectedClientIds: Set<string>` com checkboxes nos cards de clientes ativos
+- **ClienteCard**: Adicionar checkbox de seleção
+- **FinancialSummary**: Receber prop `selectedClients` (subset dos ativos selecionados) e exibir totalizadores específicos dos selecionados:
+  - Total pago (soma dos valores das mensalidades dos selecionados)
+  - Total custos (soma dos custos dos selecionados)
+  - Lucro dos selecionados
+- Quando nenhum cliente selecionado, mostrar o resumo geral como hoje
 
-### 3. Histórico de Metas (gráfico mês a mês)
+### 3. Histórico manual com botão
 
-**Metas (`src/pages/Metas.tsx`):**
-- Adicionar seção "Histórico" abaixo dos cards existentes
-- Buscar metas dos últimos 6-12 meses
-- Para cada mês, buscar leads ganhos de membros participantes
-- Gráfico de barras usando `recharts` (já disponível via shadcn/ui chart)
-- Barras: meta vs fechados por mês, com cor verde quando atingida e vermelha quando não
+- **Mudança de lógica**: Clientes com 3 mensalidades pagas **não** vão automaticamente para o histórico
+- **Database**: Adicionar coluna `historico boolean DEFAULT false` na tabela `clients`
+- **ClienteCard**: Quando `mensalidades_pagas >= 3` e `historico = false`, exibir botão "Passar para histórico"
+- **Clientes.tsx**: 
+  - Ativos = `historico = false`
+  - Histórico = `historico = true`
+  - Handler para o botão que faz `UPDATE clients SET historico = true`
 
-### 4. Correção de visibilidade no tema claro
+### 4. Remover "Mensalidades pagas" do ClienteEditDialog
 
-**CSS (`src/index.css`):**
-- Revisar variáveis do tema claro (`:root`) para garantir contraste adequado
-- Ajustar `glass-panel`, `neon-border`, `neon-glow` e classes customizadas para funcionar em ambos os temas
-- Garantir que textos em cards, badges e progress bars tenham contraste suficiente no tema claro
+- **ClienteEditDialog**: Remover o campo `mensalidades_pagas` do formulário (já é controlado pelo diálogo de mensalidades)
+- Remover do `editValues` state e do `handleSave`
 
-### Arquivos afetados
-- `supabase/migrations/` — nova migração (participa_comissao)
-- `src/pages/Membros.tsx` — switch participa_comissao
-- `src/pages/Metas.tsx` — filtro por participa_comissao + gráfico histórico
-- `src/pages/Comissoes.tsx` — filtro por participa_comissao
-- `src/pages/Dashboard.tsx` — filtro por participa_comissao
-- `src/pages/Relatorios.tsx` — novo relatório "Fechamento Mensal" com PDF/Excel
-- `src/index.css` — ajustes de contraste no tema claro
-- `package.json` — adicionar `jspdf` e `jspdf-autotable`
+---
+
+### Mudança no Banco de Dados
+
+Uma migration para adicionar a coluna `historico`:
+
+```sql
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS historico boolean DEFAULT false;
+```
+
+### Arquivos Modificados
+
+| Arquivo | Mudança |
+|---|---|
+| `src/pages/Clientes.tsx` | Fetch mensalidades, state de seleção, lógica ativos/histórico por coluna `historico`, remover `mensalidades_pagas` do edit |
+| `src/components/clientes/ClienteCard.tsx` | Checkbox seleção, lucro por mensalidade, botão "Passar para histórico" |
+| `src/components/clientes/ClienteEditDialog.tsx` | Remover campo "Mensalidades pagas" |
+| `src/components/clientes/FinancialSummary.tsx` | Aceitar clientes selecionados e mostrar totalização dinâmica |
+| Migration SQL | Adicionar coluna `historico` |
 

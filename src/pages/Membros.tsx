@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { Tag, Users, UserPlus, Pencil, KeyRound, Mail } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,6 +16,7 @@ interface Profile {
   nome: string;
   avatar_url: string | null;
   custom_role_id: string | null;
+  participa_comissao: boolean | null;
 }
 
 interface CustomRole {
@@ -51,7 +53,7 @@ export default function Membros() {
 
   const fetchAll = async () => {
     const [profilesRes, rolesRes, userRolesRes] = await Promise.all([
-      supabase.from("profiles").select("id, nome, avatar_url, custom_role_id"),
+      supabase.from("profiles").select("id, nome, avatar_url, custom_role_id, participa_comissao"),
       supabase.from("custom_roles").select("id, nome").order("nome"),
       supabase.from("user_roles").select("user_id, role"),
     ]);
@@ -114,13 +116,23 @@ export default function Membros() {
     fetchAll();
   };
 
+  const toggleParticipaComissao = async (profileId: string, currentValue: boolean | null) => {
+    const newValue = !(currentValue ?? true);
+    const { error } = await supabase.from("profiles").update({ participa_comissao: newValue }).eq("id", profileId);
+    if (error) {
+      toast.error("Erro ao atualizar");
+      return;
+    }
+    toast.success(newValue ? "Membro agora participa das comissões/metas" : "Membro removido das comissões/metas");
+    fetchAll();
+  };
+
   const handleOpenEdit = async (member: Profile) => {
     setEditMember(member);
     setEditForm({ nome: member.nome || "", email: "", password: "" });
     setEditCurrentEmail("");
     setOpenEdit(true);
 
-    // Fetch current email via edge function
     const { data } = await supabase.functions.invoke("admin-update-user", {
       body: { user_id: member.id, action: "get_email" },
     });
@@ -210,7 +222,6 @@ export default function Membros() {
           <p className="text-muted-foreground text-sm mt-1">{profiles.length} membros</p>
         </div>
         <div className="flex gap-2">
-          {/* Self password change - visible to all */}
           {!isAdmin && (
             <Dialog open={openSelfPassword} onOpenChange={setOpenSelfPassword}>
               <DialogTrigger asChild>
@@ -225,31 +236,13 @@ export default function Membros() {
                 <form onSubmit={handleSelfPasswordChange} className="space-y-4">
                   <div className="space-y-2">
                     <Label>Nova Senha</Label>
-                    <Input
-                      type="password"
-                      value={selfPasswordForm.newPassword}
-                      onChange={(e) => setSelfPasswordForm({ ...selfPasswordForm, newPassword: e.target.value })}
-                      placeholder="Mínimo 6 caracteres"
-                      minLength={6}
-                      required
-                      className="bg-secondary/50"
-                    />
+                    <Input type="password" value={selfPasswordForm.newPassword} onChange={(e) => setSelfPasswordForm({ ...selfPasswordForm, newPassword: e.target.value })} placeholder="Mínimo 6 caracteres" minLength={6} required className="bg-secondary/50" />
                   </div>
                   <div className="space-y-2">
                     <Label>Confirmar Nova Senha</Label>
-                    <Input
-                      type="password"
-                      value={selfPasswordForm.confirm}
-                      onChange={(e) => setSelfPasswordForm({ ...selfPasswordForm, confirm: e.target.value })}
-                      placeholder="Repita a nova senha"
-                      minLength={6}
-                      required
-                      className="bg-secondary/50"
-                    />
+                    <Input type="password" value={selfPasswordForm.confirm} onChange={(e) => setSelfPasswordForm({ ...selfPasswordForm, confirm: e.target.value })} placeholder="Repita a nova senha" minLength={6} required className="bg-secondary/50" />
                   </div>
-                  <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">
-                    Alterar Senha
-                  </Button>
+                  <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">Alterar Senha</Button>
                 </form>
               </DialogContent>
             </Dialog>
@@ -270,41 +263,17 @@ export default function Membros() {
                   <form onSubmit={createMember} className="space-y-4">
                     <div className="space-y-2">
                       <Label>Nome</Label>
-                      <Input
-                        value={memberForm.nome}
-                        onChange={(e) => setMemberForm({ ...memberForm, nome: e.target.value })}
-                        placeholder="Nome completo"
-                        maxLength={100}
-                        required
-                        className="bg-secondary/50"
-                      />
+                      <Input value={memberForm.nome} onChange={(e) => setMemberForm({ ...memberForm, nome: e.target.value })} placeholder="Nome completo" maxLength={100} required className="bg-secondary/50" />
                     </div>
                     <div className="space-y-2">
                       <Label>Email</Label>
-                      <Input
-                        type="email"
-                        value={memberForm.email}
-                        onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })}
-                        placeholder="email@exemplo.com"
-                        required
-                        className="bg-secondary/50"
-                      />
+                      <Input type="email" value={memberForm.email} onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })} placeholder="email@exemplo.com" required className="bg-secondary/50" />
                     </div>
                     <div className="space-y-2">
                       <Label>Senha</Label>
-                      <Input
-                        type="password"
-                        value={memberForm.password}
-                        onChange={(e) => setMemberForm({ ...memberForm, password: e.target.value })}
-                        placeholder="Mínimo 6 caracteres"
-                        minLength={6}
-                        required
-                        className="bg-secondary/50"
-                      />
+                      <Input type="password" value={memberForm.password} onChange={(e) => setMemberForm({ ...memberForm, password: e.target.value })} placeholder="Mínimo 6 caracteres" minLength={6} required className="bg-secondary/50" />
                     </div>
-                    <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">
-                      Criar Membro
-                    </Button>
+                    <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">Criar Membro</Button>
                   </form>
                 </DialogContent>
               </Dialog>
@@ -322,18 +291,9 @@ export default function Membros() {
                   <form onSubmit={createCustomRole} className="space-y-4">
                     <div className="space-y-2">
                       <Label>Nome da Função</Label>
-                      <Input
-                        value={newRoleName}
-                        onChange={(e) => setNewRoleName(e.target.value)}
-                        placeholder="Ex: Gerente Comercial"
-                        maxLength={50}
-                        required
-                        className="bg-secondary/50"
-                      />
+                      <Input value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} placeholder="Ex: Gerente Comercial" maxLength={50} required className="bg-secondary/50" />
                     </div>
-                    <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">
-                      Criar Função
-                    </Button>
+                    <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">Criar Função</Button>
                   </form>
                 </DialogContent>
               </Dialog>
@@ -351,14 +311,7 @@ export default function Membros() {
           <form onSubmit={handleAdminEdit} className="space-y-4">
             <div className="space-y-2">
               <Label>Nome</Label>
-              <Input
-                value={editForm.nome}
-                onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })}
-                placeholder="Nome completo"
-                maxLength={100}
-                required
-                className="bg-secondary/50"
-              />
+              <Input value={editForm.nome} onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })} placeholder="Nome completo" maxLength={100} required className="bg-secondary/50" />
             </div>
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5">
@@ -371,27 +324,13 @@ export default function Membros() {
             </div>
             <div className="space-y-2">
               <Label>Novo Email <span className="text-muted-foreground font-normal">(deixe vazio para manter)</span></Label>
-              <Input
-                type="email"
-                value={editForm.email}
-                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                placeholder="novo@email.com"
-                className="bg-secondary/50"
-              />
+              <Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} placeholder="novo@email.com" className="bg-secondary/50" />
             </div>
             <div className="space-y-2">
               <Label>Nova Senha <span className="text-muted-foreground font-normal">(deixe vazio para manter)</span></Label>
-              <Input
-                type="password"
-                value={editForm.password}
-                onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
-                placeholder="Mínimo 6 caracteres"
-                className="bg-secondary/50"
-              />
+              <Input type="password" value={editForm.password} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} placeholder="Mínimo 6 caracteres" className="bg-secondary/50" />
             </div>
-            <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">
-              Salvar Alterações
-            </Button>
+            <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">Salvar Alterações</Button>
           </form>
         </DialogContent>
       </Dialog>
@@ -437,6 +376,20 @@ export default function Membros() {
                   <p className="text-sm text-foreground">{getRoleName(member.custom_role_id)}</p>
                 )}
               </div>
+
+              {/* Participa da comissão switch - admin only */}
+              {isAdmin && (
+                <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                  <Label className="text-xs text-muted-foreground cursor-pointer" htmlFor={`comissao-${member.id}`}>
+                    Participa da comissão/metas
+                  </Label>
+                  <Switch
+                    id={`comissao-${member.id}`}
+                    checked={member.participa_comissao ?? true}
+                    onCheckedChange={() => toggleParticipaComissao(member.id, member.participa_comissao)}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
