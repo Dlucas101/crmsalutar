@@ -64,31 +64,23 @@ export default function Comissoes() {
     },
   });
 
-  const { data: userRoles } = useQuery({
-    queryKey: ["comissoes-user-roles"],
-    queryFn: async () => {
-      const { data } = await supabase.from("user_roles").select("user_id, role");
-      return data || [];
-    },
-  });
-
-  const adminIds = useMemo(() => {
-    if (!userRoles) return new Set<string>();
-    return new Set(userRoles.filter((r) => r.role === "admin" || r.role === "gestor").map((r) => r.user_id));
-  }, [userRoles]);
-
   const { data: profiles } = useQuery({
     queryKey: ["comissoes-profiles"],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("id, nome");
+      const { data } = await supabase.from("profiles").select("id, nome, participa_comissao");
       return data || [];
     },
   });
 
-  const nonAdminProfiles = useMemo(() => {
+  // Filter by participa_comissao instead of user_roles
+  const participatingProfiles = useMemo(() => {
     if (!profiles) return [];
-    return profiles.filter((p) => !adminIds.has(p.id));
-  }, [profiles, adminIds]);
+    return profiles.filter((p: any) => p.participa_comissao !== false);
+  }, [profiles]);
+
+  const participatingIds = useMemo(() => {
+    return new Set(participatingProfiles.map((p) => p.id));
+  }, [participatingProfiles]);
 
   const { data: leads } = useQuery({
     queryKey: ["comissoes-leads"],
@@ -122,14 +114,14 @@ export default function Comissoes() {
     const map = new Map<string, number>();
     for (const l of leads) {
       if (l.status !== "fechado_ganho" || !l.responsible_id) continue;
-      if (adminIds.has(l.responsible_id)) continue; // Admins don't participate in meta
+      if (!participatingIds.has(l.responsible_id)) continue;
       const d = new Date(l.updated_at);
       if (d.getMonth() + 1 === selectedMonth && d.getFullYear() === selectedYear) {
         map.set(l.responsible_id, (map.get(l.responsible_id) || 0) + 1);
       }
     }
     return map;
-  }, [leads, selectedMonth, selectedYear, adminIds]);
+  }, [leads, selectedMonth, selectedYear, participatingIds]);
 
   const totalLeadsGanho = useMemo(() => {
     let total = 0;
@@ -142,11 +134,12 @@ export default function Comissoes() {
   const superMetaAtingida = superMetaQtd > 0 && totalLeadsGanho >= superMetaQtd;
   const superMetaBonusValor = metas ? Number((metas as any).meta_bonus_valor) || 0 : 0;
   const superMetaDescricao = metas ? (metas as any).meta_bonus_descricao as string | null : null;
+
   const tecnicoSummaries = useMemo(() => {
-    if (!clients || !mensalidades || !nonAdminProfiles.length) return [];
+    if (!clients || !mensalidades || !participatingProfiles.length) return [];
 
     const leadsMap = new Map((leads || []).map((l) => [l.id, l.responsible_id]));
-    const profilesMap = new Map(nonAdminProfiles.map((p) => [p.id, p.nome]));
+    const profilesMap = new Map(participatingProfiles.map((p) => [p.id, p.nome]));
 
     const clientMap = new Map(
       clients.map((c) => {
@@ -234,7 +227,7 @@ export default function Comissoes() {
     }
 
     return summaries.sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [clients, mensalidades, nonAdminProfiles, leads, selectedMonth, selectedYear, metas, metaAtingida, superMetaAtingida, superMetaBonusValor, leadsGanhoByTecnico, adminIds]);
+  }, [clients, mensalidades, participatingProfiles, leads, selectedMonth, selectedYear, metas, metaAtingida, superMetaAtingida, superMetaBonusValor, leadsGanhoByTecnico, participatingIds]);
 
   const displayedSummaries = useMemo(() => {
     let filtered = tecnicoSummaries;
@@ -293,9 +286,7 @@ export default function Comissoes() {
           </SelectTrigger>
           <SelectContent>
             {MONTHS.map((m, i) => (
-              <SelectItem key={i} value={String(i + 1)}>
-                {m}
-              </SelectItem>
+              <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -306,9 +297,7 @@ export default function Comissoes() {
           </SelectTrigger>
           <SelectContent>
             {years.map((y) => (
-              <SelectItem key={y} value={String(y)}>
-                {y}
-              </SelectItem>
+              <SelectItem key={y} value={String(y)}>{y}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -320,10 +309,8 @@ export default function Comissoes() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos os técnicos</SelectItem>
-              {nonAdminProfiles.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.nome}
-                </SelectItem>
+              {participatingProfiles.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
               ))}
             </SelectContent>
           </Select>
