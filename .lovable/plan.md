@@ -1,72 +1,96 @@
 
 
-## Auditoria de Segurança e Plano de Correção
+## Plano: Módulo de Contratos com Templates DOCX
 
-### Problemas Encontrados
+### Como funciona
 
-**3 problemas CRITICOS:**
+Você faz upload de um arquivo Word (.docx) como modelo de contrato. Dentro do Word, você coloca marcadores especiais que o sistema reconhece:
 
-1. **Tabela `visits` acessível sem login** — As políticas RLS estão configuradas para `public` em vez de `authenticated`. Qualquer pessoa na internet pode ler, criar, editar e apagar visitas.
+**Para campos preenchíveis**, use chaves duplas:
+```text
+{{nome_cliente}}
+{{cpf_cnpj}}
+{{valor_mensal}}
+{{endereco}}
+```
 
-2. **Qualquer membro pode se tornar admin** — A política `user_roles_all` permite que qualquer usuário autenticado insira/atualize/delete roles. Um membro comum pode se dar permissão de admin.
+**Para seções condicionais** (que podem ser removidas via checkbox), use chaves com `#` para abrir e `/` para fechar:
+```text
+{{#desconto}}
+O CONTRATANTE terá desconto de {{valor_desconto}} aplicado nas primeiras {{meses_desconto}} mensalidades.
+{{/desconto}}
+```
 
-3. **Notificações de outros usuários visíveis** — Qualquer usuário pode ler e marcar como lida as notificações de outros.
+No Word, basta digitar esses marcadores exatamente assim no texto. O sistema lê o DOCX, encontra todos os `{{...}}` e monta o formulário automaticamente.
 
-**Problemas de nível WARN (26 ocorrências):**
+### Fluxo do usuário
 
-4. **Políticas RLS "sempre true"** — Quase todas as tabelas (leads, clients, tasks, mensalidades, profiles, projects, activities, custom_roles) têm INSERT/UPDATE/DELETE com `USING (true)` ou `WITH CHECK (true)`. Isso significa que qualquer usuário logado pode modificar qualquer registro, sem verificação de propriedade ou role.
+1. **Aba Contratos** no menu lateral
+2. **Gerenciar Modelos** — upload de DOCX, dar nome ao modelo (ex: "Contrato Locação Padrão")
+3. **Gerar Contrato** — seleciona modelo, sistema mostra formulário com todos os campos encontrados + checkboxes para seções condicionais
+4. **Preencher** — digita os dados nos campos
+5. **Exportar** — botão PDF e botão DOCX, ambos com os dados preenchidos e seções removidas
 
-5. **Proteção contra senhas vazadas desabilitada** — O sistema não verifica se a senha do usuário já apareceu em vazamentos conhecidos.
+### Logo
 
-6. **Dados sensíveis de clientes e leads** — Email, WhatsApp, CPF/CNPJ e valores financeiros acessíveis a todos os membros sem restrição.
+A logo que já está no seu modelo Word será mantida. O sistema preserva imagens, formatação e layout do DOCX original — ele só substitui os marcadores pelos valores digitados.
 
----
+### Detalhes técnicos
 
-### Plano de Correção
+**Banco de dados:**
+- Tabela `contract_templates`: id, nome, arquivo (storage), campos detectados (JSON), created_at
+- Tabela `generated_contracts`: id, template_id, dados preenchidos (JSON), gerado_por, created_at
+- Storage bucket para os arquivos DOCX (modelos e gerados)
+- RLS: apenas admin/gestor pode gerenciar modelos; membros podem gerar contratos
 
-**Fase 1 — Correções criticas (migração SQL)**
+**Backend (Edge Function):**
+- `process-contract`: recebe o template DOCX do storage, substitui os `{{campo}}` pelos valores, remove blocos `{{#secao}}...{{/secao}}` desmarcados, gera DOCX final e converte para PDF
+- Usa a biblioteca `docx-templates` para manipulação do DOCX server-side
 
-Uma única migração que:
+**Frontend:**
+- Nova página `src/pages/Contratos.tsx` com duas abas: "Modelos" e "Gerar"
+- Upload de DOCX com preview do nome e campos detectados
+- Formulário dinâmico gerado a partir dos marcadores encontrados
+- Botões de download PDF e DOCX
 
-- **visits**: Troca todas as políticas de `public` para `authenticated`
-- **user_roles**: Remove a política `user_roles_all` e cria políticas restritas:
-  - SELECT: qualquer autenticado pode ver
-  - INSERT/UPDATE/DELETE: apenas admin/gestor via `is_admin_or_gestor(auth.uid())`
-- **notifications**: Restringe SELECT e UPDATE para `auth.uid() = user_id`; INSERT mantém para autenticados
-- **profiles**: Restringe UPDATE para `auth.uid() = id` (cada um edita só o próprio) OU admin via `is_admin_or_gestor`
-
-**Fase 2 — Restrições por role nas tabelas de dados**
-
-Dado que este é um CRM interno onde a equipe precisa colaborar, a abordagem recomendada é:
-
-- **leads, clients, tasks, mensalidades, projects**: Manter SELECT aberto para autenticados. Restringir INSERT/UPDATE/DELETE para admin/gestor OU para o responsável do registro (`responsible_id = auth.uid()`, `assigned_user_id = auth.uid()`, etc.)
-- **custom_roles**: INSERT/UPDATE/DELETE apenas para admin/gestor
-- **metas**: Já está correto (admin/gestor para escrita)
-
-**Fase 3 — Proteção de senha**
-
-- Ativar a proteção HIBP (Have I Been Pwned) via configuração de autenticação
-
----
-
-### Decisão necessaria
-
-Considerando que este é um CRM usado por uma equipe pequena e confiável, as correções da **Fase 2** (restringir quem pode editar leads, clientes, etc.) podem impactar o fluxo de trabalho se membros de vendas precisarem editar seus próprios leads. A sugestão é:
-
-- Membros podem editar registros atribuídos a eles (`responsible_id` / `assigned_user_id`)
-- Admin/Gestor podem editar qualquer registro
-- Apenas Admin/Gestor podem deletar
+**Segurança:**
+- Bucket com RLS: upload apenas admin/gestor, download autenticados
+- Tabelas com RLS restritivas (admin/gestor para modelos, autenticados para geração)
+- Validação de segurança após implementação
 
 ### Arquivos afetados
 
-| Arquivo | Acao |
+| Arquivo | Ação |
 |---|---|
-| `supabase/migrations/` | Nova migração com todas as correções de RLS |
-| Nenhum arquivo frontend | As correções são apenas no banco de dados |
+| `supabase/migrations/` | Criar tabelas contract_templates e generated_contracts |
+| `supabase/functions/process-contract/` | Edge function para processar DOCX |
+| `src/pages/Contratos.tsx` | Nova página com abas Modelos e Gerar |
+| `src/components/AppSidebar.tsx` | Adicionar link "Contratos" |
+| `src/App.tsx` | Adicionar rota `/contratos` |
 
-### Sugestoes de melhorias funcionais
+### Exemplo prático no Word
 
-- **Log de auditoria**: registrar quem alterou o que e quando (tabela `audit_log`)
-- **Backup automático de dados**: exportação periódica dos dados do CRM
-- **Validação de entrada**: adicionar validação com `zod` nos formulários de lead e cliente para prevenir dados malformados
+```text
+CONTRATO DE PRESTAÇÃO DE SERVIÇOS
+
+CONTRATANTE: {{nome_cliente}}
+CPF/CNPJ: {{cpf_cnpj}}
+Endereço: {{endereco}}
+
+Valor mensal: R$ {{valor_mensal}}
+
+{{#desconto}}
+CLÁUSULA DE DESCONTO
+O CONTRATANTE terá desconto de R$ {{valor_desconto}} nas primeiras {{meses_desconto}} mensalidades.
+{{/desconto}}
+
+{{#fidelidade}}
+CLÁUSULA DE FIDELIDADE
+O presente contrato tem prazo mínimo de {{prazo_fidelidade}} meses.
+{{/fidelidade}}
+```
+
+No sistema, apareceriam:
+- **Campos de texto**: nome_cliente, cpf_cnpj, endereco, valor_mensal, valor_desconto, meses_desconto, prazo_fidelidade
+- **Checkboxes**: "Incluir seção: desconto", "Incluir seção: fidelidade"
 
