@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Upload, FileText, Download, Trash2, Plus, Loader2 } from "lucide-react";
+import { Upload, FileText, Download, Trash2, Plus, Loader2, Search } from "lucide-react";
 
 interface ContractTemplate {
   id: string;
@@ -39,6 +39,28 @@ interface ContractTemplate {
   campos: string[];
   secoes_condicionais: string[];
   created_at: string;
+}
+
+// CNPJ field mapping: keyword in template field name → ReceitaWS key
+const CNPJ_FIELD_MAP: Record<string, string> = {
+  razao: "razao_social",
+  fantasia: "nome_fantasia",
+  cnpj: "cnpj",
+  endereco: "endereco",
+  cidade: "cidade",
+  municipio: "cidade",
+  uf: "uf",
+  estado: "uf",
+  cep: "cep",
+};
+
+function formatCnpjInput(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 14);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+  if (digits.length <= 8) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
+  if (digits.length <= 12) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`;
+  return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
 }
 
 export default function Contratos() {
@@ -58,6 +80,10 @@ export default function Contratos() {
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [sections, setSections] = useState<Record<string, boolean>>({});
   const [generating, setGenerating] = useState(false);
+
+  // CNPJ lookup state
+  const [cnpjInput, setCnpjInput] = useState("");
+  const [lookingUp, setLookingUp] = useState(false);
 
   useEffect(() => {
     fetchTemplates();
