@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Upload, FileText, Download, Trash2, Plus, Loader2 } from "lucide-react";
+import { Upload, FileText, Download, Trash2, Plus, Loader2, Search } from "lucide-react";
 
 interface ContractTemplate {
   id: string;
@@ -39,6 +39,28 @@ interface ContractTemplate {
   campos: string[];
   secoes_condicionais: string[];
   created_at: string;
+}
+
+// CNPJ field mapping: keyword in template field name → ReceitaWS key
+const CNPJ_FIELD_MAP: Record<string, string> = {
+  razao: "razao_social",
+  fantasia: "nome_fantasia",
+  cnpj: "cnpj",
+  endereco: "endereco",
+  cidade: "cidade",
+  municipio: "cidade",
+  uf: "uf",
+  estado: "uf",
+  cep: "cep",
+};
+
+function formatCnpjInput(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 14);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+  if (digits.length <= 8) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
+  if (digits.length <= 12) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`;
+  return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
 }
 
 export default function Contratos() {
@@ -58,6 +80,10 @@ export default function Contratos() {
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [sections, setSections] = useState<Record<string, boolean>>({});
   const [generating, setGenerating] = useState(false);
+
+  // CNPJ lookup state
+  const [cnpjInput, setCnpjInput] = useState("");
+  const [lookingUp, setLookingUp] = useState(false);
 
   useEffect(() => {
     fetchTemplates();
@@ -139,6 +165,43 @@ export default function Contratos() {
 
   const currentTemplate = templates.find((t) => t.id === selectedTemplate);
 
+  const handleCnpjLookup = async () => {
+    const digits = cnpjInput.replace(/\D/g, "");
+    if (digits.length !== 14) {
+      toast({ title: "Digite um CNPJ válido com 14 dígitos", variant: "destructive" });
+      return;
+    }
+
+    setLookingUp(true);
+    try {
+      const response = await supabase.functions.invoke("cnpj-lookup", {
+        body: { cnpj: digits },
+      });
+
+      if (response.error) throw new Error(response.error.message);
+      const apiData = response.data as Record<string, string>;
+
+      if (!currentTemplate) return;
+
+      const updatedForm = { ...formData };
+      for (const campo of currentTemplate.campos) {
+        const campoLower = campo.toLowerCase();
+        for (const [keyword, apiKey] of Object.entries(CNPJ_FIELD_MAP)) {
+          if (campoLower.includes(keyword) && apiData[apiKey]) {
+            updatedForm[campo] = apiData[apiKey];
+            break;
+          }
+        }
+      }
+      setFormData(updatedForm);
+      toast({ title: "Dados do CNPJ preenchidos!" });
+    } catch (err: any) {
+      toast({ title: "Erro ao consultar CNPJ", description: err.message, variant: "destructive" });
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
   useEffect(() => {
     if (currentTemplate) {
       const newFormData: Record<string, string> = {};
@@ -148,6 +211,7 @@ export default function Contratos() {
       const newSections: Record<string, boolean> = {};
       currentTemplate.secoes_condicionais.forEach((s) => (newSections[s] = true));
       setSections(newSections);
+      setCnpjInput("");
     }
   }, [selectedTemplate]);
 
@@ -352,6 +416,37 @@ export default function Contratos() {
 
           {currentTemplate && (
             <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Consultar CNPJ</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <Label>CNPJ</Label>
+                      <Input
+                        value={cnpjInput}
+                        onChange={(e) => setCnpjInput(formatCnpjInput(e.target.value))}
+                        placeholder="00.000.000/0000-00"
+                        maxLength={18}
+                      />
+                    </div>
+                    <Button onClick={handleCnpjLookup} disabled={lookingUp} variant="outline">
+                      {lookingUp ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Search className="h-4 w-4 mr-2" /> Consultar
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Digite o CNPJ para preencher automaticamente razão social, endereço e outros campos.
+                  </p>
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Preencher Campos</CardTitle>
