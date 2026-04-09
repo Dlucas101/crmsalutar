@@ -17,6 +17,7 @@ import Membros from "./pages/Membros";
 import Relatorios from "./pages/Relatorios";
 import Metas from "./pages/Metas";
 import Comissoes from "./pages/Comissoes";
+import Contratos from "./pages/Contratos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -56,6 +57,7 @@ const App = () => (
               <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
               <Route path="/metas" element={<ProtectedRoute><Metas /></ProtectedRoute>} />
               <Route path="/comissoes" element={<ProtectedRoute><Comissoes /></ProtectedRoute>} />
+              <Route path="/contratos" element={<ProtectedRoute><Contratos /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>
