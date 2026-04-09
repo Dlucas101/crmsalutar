@@ -1,62 +1,72 @@
 
 
-## Plano de Ajustes na Tela de Clientes
+## Auditoria de Segurança e Plano de Correção
 
-### Resumo das Mudanças
+### Problemas Encontrados
 
-Quatro ajustes principais: (1) mostrar lucro por mensalidade no card, (2) adicionar seleção de clientes com totalização dinâmica no resumo financeiro, (3) mudar regra de histórico para botão manual na 3a mensalidade, (4) remover campo "Mensalidades pagas" do diálogo de edição.
+**3 problemas CRITICOS:**
 
----
+1. **Tabela `visits` acessível sem login** — As políticas RLS estão configuradas para `public` em vez de `authenticated`. Qualquer pessoa na internet pode ler, criar, editar e apagar visitas.
 
-### 1. Lucro por mensalidade no ClienteCard
+2. **Qualquer membro pode se tornar admin** — A política `user_roles_all` permite que qualquer usuário autenticado insira/atualize/delete roles. Um membro comum pode se dar permissão de admin.
 
-No `ClienteCard`, para cada mensalidade paga, exibir o lucro individual: `valor da mensalidade - custo do sistema`. Isso requer buscar as mensalidades do cliente. Duas opções: buscar no componente pai e passar como prop, ou exibir apenas o total. A abordagem mais limpa é carregar as mensalidades na página `Clientes.tsx` e passar para o card.
+3. **Notificações de outros usuários visíveis** — Qualquer usuário pode ler e marcar como lida as notificações de outros.
 
-- **Clientes.tsx**: Fetch da tabela `mensalidades` para todos os clientes e armazenar em um Map `clientId → Mensalidade[]`
-- **ClienteCard**: Receber `mensalidades` como prop e exibir, ao lado de cada badge (1ª, 2ª, 3ª), o valor pago e o lucro (`valor_mens - custo_sistema`)
+**Problemas de nível WARN (26 ocorrências):**
 
-### 2. Seleção de clientes + totalização dinâmica no FinancialSummary
+4. **Políticas RLS "sempre true"** — Quase todas as tabelas (leads, clients, tasks, mensalidades, profiles, projects, activities, custom_roles) têm INSERT/UPDATE/DELETE com `USING (true)` ou `WITH CHECK (true)`. Isso significa que qualquer usuário logado pode modificar qualquer registro, sem verificação de propriedade ou role.
 
-- **Clientes.tsx**: Adicionar state `selectedClientIds: Set<string>` com checkboxes nos cards de clientes ativos
-- **ClienteCard**: Adicionar checkbox de seleção
-- **FinancialSummary**: Receber prop `selectedClients` (subset dos ativos selecionados) e exibir totalizadores específicos dos selecionados:
-  - Total pago (soma dos valores das mensalidades dos selecionados)
-  - Total custos (soma dos custos dos selecionados)
-  - Lucro dos selecionados
-- Quando nenhum cliente selecionado, mostrar o resumo geral como hoje
+5. **Proteção contra senhas vazadas desabilitada** — O sistema não verifica se a senha do usuário já apareceu em vazamentos conhecidos.
 
-### 3. Histórico manual com botão
-
-- **Mudança de lógica**: Clientes com 3 mensalidades pagas **não** vão automaticamente para o histórico
-- **Database**: Adicionar coluna `historico boolean DEFAULT false` na tabela `clients`
-- **ClienteCard**: Quando `mensalidades_pagas >= 3` e `historico = false`, exibir botão "Passar para histórico"
-- **Clientes.tsx**: 
-  - Ativos = `historico = false`
-  - Histórico = `historico = true`
-  - Handler para o botão que faz `UPDATE clients SET historico = true`
-
-### 4. Remover "Mensalidades pagas" do ClienteEditDialog
-
-- **ClienteEditDialog**: Remover o campo `mensalidades_pagas` do formulário (já é controlado pelo diálogo de mensalidades)
-- Remover do `editValues` state e do `handleSave`
+6. **Dados sensíveis de clientes e leads** — Email, WhatsApp, CPF/CNPJ e valores financeiros acessíveis a todos os membros sem restrição.
 
 ---
 
-### Mudança no Banco de Dados
+### Plano de Correção
 
-Uma migration para adicionar a coluna `historico`:
+**Fase 1 — Correções criticas (migração SQL)**
 
-```sql
-ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS historico boolean DEFAULT false;
-```
+Uma única migração que:
 
-### Arquivos Modificados
+- **visits**: Troca todas as políticas de `public` para `authenticated`
+- **user_roles**: Remove a política `user_roles_all` e cria políticas restritas:
+  - SELECT: qualquer autenticado pode ver
+  - INSERT/UPDATE/DELETE: apenas admin/gestor via `is_admin_or_gestor(auth.uid())`
+- **notifications**: Restringe SELECT e UPDATE para `auth.uid() = user_id`; INSERT mantém para autenticados
+- **profiles**: Restringe UPDATE para `auth.uid() = id` (cada um edita só o próprio) OU admin via `is_admin_or_gestor`
 
-| Arquivo | Mudança |
+**Fase 2 — Restrições por role nas tabelas de dados**
+
+Dado que este é um CRM interno onde a equipe precisa colaborar, a abordagem recomendada é:
+
+- **leads, clients, tasks, mensalidades, projects**: Manter SELECT aberto para autenticados. Restringir INSERT/UPDATE/DELETE para admin/gestor OU para o responsável do registro (`responsible_id = auth.uid()`, `assigned_user_id = auth.uid()`, etc.)
+- **custom_roles**: INSERT/UPDATE/DELETE apenas para admin/gestor
+- **metas**: Já está correto (admin/gestor para escrita)
+
+**Fase 3 — Proteção de senha**
+
+- Ativar a proteção HIBP (Have I Been Pwned) via configuração de autenticação
+
+---
+
+### Decisão necessaria
+
+Considerando que este é um CRM usado por uma equipe pequena e confiável, as correções da **Fase 2** (restringir quem pode editar leads, clientes, etc.) podem impactar o fluxo de trabalho se membros de vendas precisarem editar seus próprios leads. A sugestão é:
+
+- Membros podem editar registros atribuídos a eles (`responsible_id` / `assigned_user_id`)
+- Admin/Gestor podem editar qualquer registro
+- Apenas Admin/Gestor podem deletar
+
+### Arquivos afetados
+
+| Arquivo | Acao |
 |---|---|
-| `src/pages/Clientes.tsx` | Fetch mensalidades, state de seleção, lógica ativos/histórico por coluna `historico`, remover `mensalidades_pagas` do edit |
-| `src/components/clientes/ClienteCard.tsx` | Checkbox seleção, lucro por mensalidade, botão "Passar para histórico" |
-| `src/components/clientes/ClienteEditDialog.tsx` | Remover campo "Mensalidades pagas" |
-| `src/components/clientes/FinancialSummary.tsx` | Aceitar clientes selecionados e mostrar totalização dinâmica |
-| Migration SQL | Adicionar coluna `historico` |
+| `supabase/migrations/` | Nova migração com todas as correções de RLS |
+| Nenhum arquivo frontend | As correções são apenas no banco de dados |
+
+### Sugestoes de melhorias funcionais
+
+- **Log de auditoria**: registrar quem alterou o que e quando (tabela `audit_log`)
+- **Backup automático de dados**: exportação periódica dos dados do CRM
+- **Validação de entrada**: adicionar validação com `zod` nos formulários de lead e cliente para prevenir dados malformados
 
