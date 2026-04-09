@@ -115,6 +115,39 @@ export type Database = {
           },
         ]
       }
+      contract_templates: {
+        Row: {
+          campos: Json
+          created_at: string
+          created_by: string | null
+          file_path: string
+          id: string
+          nome: string
+          secoes_condicionais: Json
+          updated_at: string
+        }
+        Insert: {
+          campos?: Json
+          created_at?: string
+          created_by?: string | null
+          file_path: string
+          id?: string
+          nome: string
+          secoes_condicionais?: Json
+          updated_at?: string
+        }
+        Update: {
+          campos?: Json
+          created_at?: string
+          created_by?: string | null
+          file_path?: string
+          id?: string
+          nome?: string
+          secoes_condicionais?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       custom_roles: {
         Row: {
           created_at: string
@@ -132,6 +165,41 @@ export type Database = {
           nome?: string
         }
         Relationships: []
+      }
+      generated_contracts: {
+        Row: {
+          created_at: string
+          dados: Json
+          file_path: string | null
+          generated_by: string | null
+          id: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          dados?: Json
+          file_path?: string | null
+          generated_by?: string | null
+          id?: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          dados?: Json
+          file_path?: string | null
+          generated_by?: string | null
+          id?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_contracts_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contract_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       leads: {
         Row: {
