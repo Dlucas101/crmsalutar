@@ -165,6 +165,43 @@ export default function Contratos() {
 
   const currentTemplate = templates.find((t) => t.id === selectedTemplate);
 
+  const handleCnpjLookup = async () => {
+    const digits = cnpjInput.replace(/\D/g, "");
+    if (digits.length !== 14) {
+      toast({ title: "Digite um CNPJ válido com 14 dígitos", variant: "destructive" });
+      return;
+    }
+
+    setLookingUp(true);
+    try {
+      const response = await supabase.functions.invoke("cnpj-lookup", {
+        body: { cnpj: digits },
+      });
+
+      if (response.error) throw new Error(response.error.message);
+      const apiData = response.data as Record<string, string>;
+
+      if (!currentTemplate) return;
+
+      const updatedForm = { ...formData };
+      for (const campo of currentTemplate.campos) {
+        const campoLower = campo.toLowerCase();
+        for (const [keyword, apiKey] of Object.entries(CNPJ_FIELD_MAP)) {
+          if (campoLower.includes(keyword) && apiData[apiKey]) {
+            updatedForm[campo] = apiData[apiKey];
+            break;
+          }
+        }
+      }
+      setFormData(updatedForm);
+      toast({ title: "Dados do CNPJ preenchidos!" });
+    } catch (err: any) {
+      toast({ title: "Erro ao consultar CNPJ", description: err.message, variant: "destructive" });
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
   useEffect(() => {
     if (currentTemplate) {
       const newFormData: Record<string, string> = {};
@@ -174,6 +211,7 @@ export default function Contratos() {
       const newSections: Record<string, boolean> = {};
       currentTemplate.secoes_condicionais.forEach((s) => (newSections[s] = true));
       setSections(newSections);
+      setCnpjInput("");
     }
   }, [selectedTemplate]);
 
