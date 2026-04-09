@@ -418,6 +418,37 @@ export default function Contratos() {
             <>
               <Card>
                 <CardHeader>
+                  <CardTitle className="text-lg">Consultar CNPJ</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <Label>CNPJ</Label>
+                      <Input
+                        value={cnpjInput}
+                        onChange={(e) => setCnpjInput(formatCnpjInput(e.target.value))}
+                        placeholder="00.000.000/0000-00"
+                        maxLength={18}
+                      />
+                    </div>
+                    <Button onClick={handleCnpjLookup} disabled={lookingUp} variant="outline">
+                      {lookingUp ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Search className="h-4 w-4 mr-2" /> Consultar
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Digite o CNPJ para preencher automaticamente razão social, endereço e outros campos.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
                   <CardTitle className="text-lg">Preencher Campos</CardTitle>
                 </CardHeader>
                 <CardContent>
