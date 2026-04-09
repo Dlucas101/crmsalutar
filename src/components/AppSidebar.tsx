@@ -11,6 +11,7 @@ import {
   CalendarDays,
   Trophy,
   DollarSign,
+  FileSignature,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -45,6 +46,7 @@ const navItems = [
   { title: "Visitas", url: "/visitas", icon: CalendarDays },
   { title: "Metas", url: "/metas", icon: Trophy },
   { title: "Comissões", url: "/comissoes", icon: DollarSign },
+  { title: "Contratos", url: "/contratos", icon: FileSignature },
   { title: "Membros", url: "/membros", icon: UserCog },
   { title: "Relatórios", url: "/relatorios", icon: FileSpreadsheet },
 ];
