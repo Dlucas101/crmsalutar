@@ -317,14 +317,40 @@ export default function Contratos() {
                         </label>
                       </div>
                     </div>
-                    <div className="rounded-md bg-muted p-3 text-xs text-muted-foreground space-y-1">
+                    <div className="rounded-md bg-muted p-3 text-xs text-muted-foreground space-y-2">
                       <p className="font-medium text-foreground">Marcadores suportados:</p>
-                      <p>
-                        <code className="bg-background px-1 rounded">{`{{nome_campo}}`}</code> — campo de preenchimento
-                      </p>
-                      <p>
-                        <code className="bg-background px-1 rounded">{`{{#secao}}...{{/secao}}`}</code> — seção condicional
-                      </p>
+                      <p className="font-medium text-foreground text-[11px] mt-1">Dados da empresa (CNPJ):</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                        <p><code className="bg-background px-1 rounded">{`{{razao_social}}`}</code> — Razão Social</p>
+                        <p><code className="bg-background px-1 rounded">{`{{nome_fantasia}}`}</code> — Nome Fantasia</p>
+                        <p><code className="bg-background px-1 rounded">{`{{cnpj}}`}</code> — CNPJ</p>
+                        <p><code className="bg-background px-1 rounded">{`{{endereco}}`}</code> — Endereço</p>
+                        <p><code className="bg-background px-1 rounded">{`{{cidade}}`}</code> — Cidade</p>
+                        <p><code className="bg-background px-1 rounded">{`{{uf}}`}</code> — Estado (UF)</p>
+                        <p><code className="bg-background px-1 rounded">{`{{cep}}`}</code> — CEP</p>
+                      </div>
+                      <p className="font-medium text-foreground text-[11px] mt-1">Dados do contrato:</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                        <p><code className="bg-background px-1 rounded">{`{{dia_vencimento}}`}</code> — Dia do vencimento</p>
+                        <p><code className="bg-background px-1 rounded">{`{{valor_acordado}}`}</code> — Valor acordado</p>
+                        <p><code className="bg-background px-1 rounded">{`{{valor_desconto}}`}</code> — Valor do desconto</p>
+                        <p><code className="bg-background px-1 rounded">{`{{nome_sistema}}`}</code> — Nome do sistema</p>
+                        <p><code className="bg-background px-1 rounded">{`{{qtd_computadores}}`}</code> — Qtd computadores</p>
+                        <p><code className="bg-background px-1 rounded">{`{{chave}}`}</code> — Chave de identificação</p>
+                      </div>
+                      <p className="font-medium text-foreground text-[11px] mt-1">Datas e assinatura:</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                        <p><code className="bg-background px-1 rounded">{`{{data_inicio}}`}</code> — Data início</p>
+                        <p><code className="bg-background px-1 rounded">{`{{data_fim}}`}</code> — Data fim</p>
+                        <p><code className="bg-background px-1 rounded">{`{{dia}}`}</code> — Dia (assinatura)</p>
+                        <p><code className="bg-background px-1 rounded">{`{{mes}}`}</code> — Mês (assinatura)</p>
+                        <p><code className="bg-background px-1 rounded">{`{{ano}}`}</code> — Ano (assinatura)</p>
+                        <p><code className="bg-background px-1 rounded">{`{{nome_responsavel}}`}</code> — Nome responsável</p>
+                        <p><code className="bg-background px-1 rounded">{`{{cpf_responsavel}}`}</code> — CPF responsável</p>
+                      </div>
+                      <p className="font-medium text-foreground text-[11px] mt-1">Seções condicionais:</p>
+                      <p><code className="bg-background px-1 rounded">{`{{#desconto}}...{{/desconto}}`}</code> — Bloco de desconto (incluir/remover)</p>
+                      <p className="text-[10px] mt-1 italic">Você pode criar campos personalizados usando <code className="bg-background px-1 rounded">{`{{nome_campo}}`}</code></p>
                     </div>
                     <Button onClick={handleUpload} disabled={uploading} className="w-full">
                       {uploading ? (
