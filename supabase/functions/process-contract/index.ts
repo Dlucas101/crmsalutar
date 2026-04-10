@@ -1,10 +1,21 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { JSZip } from "https://deno.land/x/jszip@0.11.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+async function extractTextFromDocx(buffer: ArrayBuffer): Promise<string> {
+  const zip = new JSZip();
+  await zip.loadAsync(buffer);
+  const docXml = zip.file("word/document.xml");
+  if (!docXml) {
+    throw new Error("document.xml não encontrado no DOCX");
+  }
+  return await docXml.async("string");
+}
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -24,7 +35,6 @@ serve(async (req: Request) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Verify user
     const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
     const { data: { user }, error: userError } = await anonClient.auth.getUser(
       authHeader.replace("Bearer ", "")
@@ -59,10 +69,13 @@ serve(async (req: Request) => {
       }
 
       const buffer = await fileData.arrayBuffer();
-      const content = new Uint8Array(buffer);
-      const text = new TextDecoder("latin1").decode(content);
+      const xmlText = await extractTextFromDocx(buffer);
 
-      // Extract field markers {{field}} and conditional sections {{#section}}...{{/section}}
+      // Word often splits {{field}} across multiple XML tags like:
+      // <w:r><w:t>{{</w:t></w:r><w:r><w:t>field</w:t></w:r><w:r><w:t>}}</w:t></w:r>
+      // So we strip XML tags first to get plain text, then search for markers
+      const plainText = xmlText.replace(/<[^>]+>/g, "");
+
       const fieldRegex = /\{\{([^#/}][^}]*)\}\}/g;
       const sectionRegex = /\{\{#([^}]+)\}\}/g;
 
@@ -72,7 +85,7 @@ serve(async (req: Request) => {
       const seenSections = new Set<string>();
 
       let match;
-      while ((match = fieldRegex.exec(text)) !== null) {
+      while ((match = fieldRegex.exec(plainText)) !== null) {
         const field = match[1].trim();
         if (!seenFields.has(field)) {
           seenFields.add(field);
@@ -80,7 +93,7 @@ serve(async (req: Request) => {
         }
       }
 
-      while ((match = sectionRegex.exec(text)) !== null) {
+      while ((match = sectionRegex.exec(plainText)) !== null) {
         const section = match[1].trim();
         if (!seenSections.has(section)) {
           seenSections.add(section);
@@ -127,48 +140,50 @@ serve(async (req: Request) => {
       }
 
       const buffer = await fileData.arrayBuffer();
+      const zip = new JSZip();
+      await zip.loadAsync(buffer);
 
-      // We'll process the DOCX by reading it as a zip and manipulating the XML
-      // Using a simple zip library approach via raw bytes
-      // Since we can't use external zip libraries easily, we'll do text-based replacement
-      // on the raw buffer converted to text
-      
-      const rawContent = new TextDecoder("latin1").decode(new Uint8Array(buffer));
-      
-      // Find the document.xml content within the zip
-      // For a more reliable approach, we process the XML content
-      let processedContent = rawContent;
-      
+      const docXmlFile = zip.file("word/document.xml");
+      if (!docXmlFile) {
+        return new Response(JSON.stringify({ error: "document.xml não encontrado" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let xmlContent = await docXmlFile.async("string");
+
       const sectionNames: string[] = template.secoes_condicionais || [];
-      
+
       // Handle conditional sections
       for (const section of sectionNames) {
         const include = secoes?.[section] ?? false;
         const openTag = `{{#${section}}}`;
         const closeTag = `{{/${section}}}`;
-        
+
         if (!include) {
-          // Remove the entire section including tags
-          const openIdx = processedContent.indexOf(openTag);
-          const closeIdx = processedContent.indexOf(closeTag);
+          // Remove entire section including tags (handling XML-split tags)
+          const plainOpen = openTag.replace(/[{}#]/g, (c) => `(?:<[^>]*>)*\\` + c);
+          const plainClose = closeTag.replace(/[{}\/]/g, (c) => `(?:<[^>]*>)*\\` + c);
+          // Simple approach: find and remove between tags in plain text mapped back
+          const openIdx = xmlContent.indexOf(openTag);
+          const closeIdx = xmlContent.indexOf(closeTag);
           if (openIdx !== -1 && closeIdx !== -1) {
-            processedContent = processedContent.substring(0, openIdx) +
-              processedContent.substring(closeIdx + closeTag.length);
+            xmlContent = xmlContent.substring(0, openIdx) +
+              xmlContent.substring(closeIdx + closeTag.length);
           }
         } else {
-          // Keep content but remove the tags
-          processedContent = processedContent.split(openTag).join("").split(closeTag).join("");
+          xmlContent = xmlContent.split(openTag).join("").split(closeTag).join("");
         }
       }
-      
-      // Replace {{field}} with values
+
+      // Replace {{field}} placeholders - handle Word XML splitting
       for (const [key, value] of Object.entries(dados as Record<string, string>)) {
         const placeholder = `{{${key}}}`;
-        processedContent = processedContent.split(placeholder).join(value || "");
-      }
-      
-      // Also handle cases where Word splits the placeholder across XML tags
-      for (const [key, value] of Object.entries(dados as Record<string, string>)) {
+        // Direct replacement first
+        xmlContent = xmlContent.split(placeholder).join(value || "");
+
+        // Handle XML-split placeholders
         const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const chars = escapedKey.split("");
         const xmlTagPattern = "(?:<[^>]*>)*";
@@ -177,18 +192,20 @@ serve(async (req: Request) => {
           `\\{${xmlTagPattern}\\{${xmlTagPattern}${splitPattern}${xmlTagPattern}\\}${xmlTagPattern}\\}`,
           "g"
         );
-        processedContent = processedContent.replace(regex, value || "");
+        xmlContent = xmlContent.replace(regex, value || "");
       }
 
-      const outputBuffer = new TextEncoder().encode(processedContent);
+      zip.file("word/document.xml", xmlContent);
+      const outputBuffer = await zip.generateAsync({ type: "uint8array" });
 
-      // Save generated contract to storage
+      // Save generated contract
       const outputPath = `generated/${user.id}/${Date.now()}.docx`;
       await supabase.storage
         .from("contracts")
-        .upload(outputPath, outputBuffer, { contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+        .upload(outputPath, outputBuffer, {
+          contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
 
-      // Save record
       await supabase.from("generated_contracts").insert({
         template_id,
         dados,
