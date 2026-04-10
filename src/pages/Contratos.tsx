@@ -63,6 +63,60 @@ function formatCnpjInput(value: string): string {
   return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
 }
 
+function valorPorExtenso(valor: string): string {
+  const unidades = ["", "UM", "DOIS", "TRÊS", "QUATRO", "CINCO", "SEIS", "SETE", "OITO", "NOVE"];
+  const especiais = ["DEZ", "ONZE", "DOZE", "TREZE", "QUATORZE", "QUINZE", "DEZESSEIS", "DEZESSETE", "DEZOITO", "DEZENOVE"];
+  const dezenas = ["", "", "VINTE", "TRINTA", "QUARENTA", "CINQUENTA", "SESSENTA", "SETENTA", "OITENTA", "NOVENTA"];
+  const centenas = ["", "CENTO", "DUZENTOS", "TREZENTOS", "QUATROCENTOS", "QUINHENTOS", "SEISCENTOS", "SETECENTOS", "OITOCENTOS", "NOVECENTOS"];
+
+  const limpo = valor.replace(/[R$\s.]/g, "").replace(",", ".");
+  const num = parseFloat(limpo);
+  if (isNaN(num) || num < 0) return "";
+  if (num === 0) return "ZERO REAIS";
+
+  const inteiro = Math.floor(num);
+  const centavosNum = Math.round((num - inteiro) * 100);
+
+  function porExtensoAte999(n: number): string {
+    if (n === 0) return "";
+    if (n === 100) return "CEM";
+    const parts: string[] = [];
+    if (n >= 100) { parts.push(centenas[Math.floor(n / 100)]); n %= 100; }
+    if (n >= 10 && n <= 19) { parts.push(especiais[n - 10]); return parts.join(" E "); }
+    if (n >= 20) { parts.push(dezenas[Math.floor(n / 10)]); n %= 10; }
+    if (n >= 1) { parts.push(unidades[n]); }
+    return parts.join(" E ");
+  }
+
+  function porExtensoInteiro(n: number): string {
+    if (n === 0) return "";
+    if (n >= 1000000) {
+      const milhoes = Math.floor(n / 1000000);
+      const resto = n % 1000000;
+      const mPart = milhoes === 1 ? "UM MILHÃO" : `${porExtensoAte999(milhoes)} MILHÕES`;
+      if (resto === 0) return mPart;
+      return `${mPart} ${resto < 1000 && resto > 0 ? "E " : ""}${porExtensoInteiro(resto)}`;
+    }
+    if (n >= 1000) {
+      const milhares = Math.floor(n / 1000);
+      const resto = n % 1000;
+      const mPart = milhares === 1 ? "MIL" : `${porExtensoAte999(milhares)} MIL`;
+      if (resto === 0) return mPart;
+      return `${mPart} ${resto < 100 ? "E " : ""}${porExtensoAte999(resto)}`;
+    }
+    return porExtensoAte999(n);
+  }
+
+  const partes: string[] = [];
+  if (inteiro > 0) {
+    partes.push(`${porExtensoInteiro(inteiro)} ${inteiro === 1 ? "REAL" : "REAIS"}`);
+  }
+  if (centavosNum > 0) {
+    partes.push(`${porExtensoAte999(centavosNum)} ${centavosNum === 1 ? "CENTAVO" : "CENTAVOS"}`);
+  }
+  return partes.join(" E ");
+}
+
 export default function Contratos() {
   const { role } = useAuth();
   const { toast } = useToast();
