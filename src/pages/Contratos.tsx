@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   Select,
@@ -30,7 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Upload, FileText, Download, Trash2, Plus, Loader2, Search } from "lucide-react";
+import { Upload, FileText, Download, Trash2, Plus, Loader2, Search, Eye, History, FileDown } from "lucide-react";
 
 interface ContractTemplate {
   id: string;
@@ -41,7 +42,16 @@ interface ContractTemplate {
   created_at: string;
 }
 
-// CNPJ field mapping: keyword in template field name → ReceitaWS key
+interface GeneratedContract {
+  id: string;
+  template_id: string;
+  dados: Record<string, string>;
+  file_path: string | null;
+  generated_by: string | null;
+  created_at: string;
+  contract_templates?: { nome: string } | null;
+}
+
 const CNPJ_FIELD_MAP: Record<string, string> = {
   razao: "razao_social",
   fantasia: "nome_fantasia",
@@ -53,6 +63,8 @@ const CNPJ_FIELD_MAP: Record<string, string> = {
   estado: "uf",
   cep: "cep",
 };
+
+const DISCOUNT_KEYWORDS = ["desconto", "discount"];
 
 function formatCnpjInput(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 14);
@@ -117,6 +129,11 @@ function valorPorExtenso(valor: string): string {
   return partes.join(" E ");
 }
 
+function isDiscountField(campo: string): boolean {
+  const lower = campo.toLowerCase();
+  return DISCOUNT_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 export default function Contratos() {
   const { role } = useAuth();
   const { toast } = useToast();
@@ -134,10 +151,18 @@ export default function Contratos() {
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [sections, setSections] = useState<Record<string, boolean>>({});
   const [generating, setGenerating] = useState(false);
+  const [hasDiscount, setHasDiscount] = useState(false);
 
   // CNPJ lookup state
   const [cnpjInput, setCnpjInput] = useState("");
   const [lookingUp, setLookingUp] = useState(false);
+
+  // Preview
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  // History tab
+  const [history, setHistory] = useState<GeneratedContract[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   useEffect(() => {
     fetchTemplates();
@@ -159,6 +184,19 @@ export default function Contratos() {
     setLoading(false);
   };
 
+  const fetchHistory = async () => {
+    setLoadingHistory(true);
+    const { data, error } = await supabase
+      .from("generated_contracts")
+      .select("*, contract_templates(nome)")
+      .order("created_at", { ascending: false });
+
+    if (!error && data) {
+      setHistory(data as any);
+    }
+    setLoadingHistory(false);
+  };
+
   const handleUpload = async () => {
     if (!selectedFile || !templateName.trim()) {
       toast({ title: "Preencha o nome e selecione um arquivo", variant: "destructive" });
@@ -174,8 +212,6 @@ export default function Contratos() {
 
       if (uploadError) throw uploadError;
 
-      // Parse fields from DOCX
-      const { data: session } = await supabase.auth.getSession();
       const response = await supabase.functions.invoke("process-contract", {
         body: { action: "parse", file_path: filePath },
       });
@@ -218,6 +254,12 @@ export default function Contratos() {
   };
 
   const currentTemplate = templates.find((t) => t.id === selectedTemplate);
+
+  // Filter out discount fields when discount is disabled
+  const visibleFields = currentTemplate?.campos.filter((campo) => {
+    if (!hasDiscount && isDiscountField(campo)) return false;
+    return true;
+  }) || [];
 
   const handleCnpjLookup = async () => {
     const digits = cnpjInput.replace(/\D/g, "");
@@ -266,6 +308,7 @@ export default function Contratos() {
       currentTemplate.secoes_condicionais.forEach((s) => (newSections[s] = true));
       setSections(newSections);
       setCnpjInput("");
+      setHasDiscount(false);
     }
   }, [selectedTemplate]);
 
@@ -277,18 +320,35 @@ export default function Contratos() {
 
     setGenerating(true);
     try {
+      // Build final data: clear discount fields if disabled
+      const finalData = { ...formData };
+      if (!hasDiscount && currentTemplate) {
+        for (const campo of currentTemplate.campos) {
+          if (isDiscountField(campo)) {
+            finalData[campo] = "";
+          }
+        }
+      }
+
+      // Also toggle the "desconto" conditional section based on checkbox
+      const finalSections = { ...sections };
+      for (const secao of currentTemplate?.secoes_condicionais || []) {
+        if (secao.toLowerCase().includes("desconto")) {
+          finalSections[secao] = hasDiscount;
+        }
+      }
+
       const response = await supabase.functions.invoke("process-contract", {
         body: {
           action: "generate",
           template_id: selectedTemplate,
-          dados: formData,
-          secoes: sections,
+          dados: finalData,
+          secoes: finalSections,
         },
       });
 
       if (response.error) throw new Error(response.error.message);
 
-      // Download the generated DOCX
       const blob = new Blob([response.data], {
         type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -300,10 +360,31 @@ export default function Contratos() {
       URL.revokeObjectURL(url);
 
       toast({ title: "Contrato gerado com sucesso!" });
+      // Refresh history
+      fetchHistory();
     } catch (err: any) {
       toast({ title: "Erro ao gerar contrato", description: err.message, variant: "destructive" });
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleDownloadFromHistory = async (filePath: string, templateName: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("contracts")
+        .download(filePath);
+
+      if (error) throw error;
+
+      const url = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `contrato_${templateName}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      toast({ title: "Erro ao baixar contrato", description: err.message, variant: "destructive" });
     }
   };
 
@@ -326,12 +407,18 @@ export default function Contratos() {
         <p className="text-muted-foreground">Gerencie modelos e gere contratos preenchidos</p>
       </div>
 
-      <Tabs defaultValue="gerar" className="w-full">
+      <Tabs defaultValue="gerar" className="w-full" onValueChange={(v) => {
+        if (v === "historico") fetchHistory();
+      }}>
         <TabsList>
           {isAdmin && <TabsTrigger value="modelos">Modelos</TabsTrigger>}
           <TabsTrigger value="gerar">Gerar Contrato</TabsTrigger>
+          <TabsTrigger value="historico">
+            <History className="h-4 w-4 mr-1" /> Histórico
+          </TabsTrigger>
         </TabsList>
 
+        {/* ============ MODELOS TAB ============ */}
         {isAdmin && (
           <TabsContent value="modelos" className="space-y-4">
             <div className="flex justify-end">
@@ -475,6 +562,7 @@ export default function Contratos() {
           </TabsContent>
         )}
 
+        {/* ============ GERAR CONTRATO TAB ============ */}
         <TabsContent value="gerar" className="space-y-4">
           <Card>
             <CardHeader>
@@ -529,13 +617,36 @@ export default function Contratos() {
                 </CardContent>
               </Card>
 
+              {/* Discount toggle */}
+              {currentTemplate.campos.some((c) => isDiscountField(c)) && (
+                <Card>
+                  <CardContent className="py-4">
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id="has-discount"
+                        checked={hasDiscount}
+                        onCheckedChange={setHasDiscount}
+                      />
+                      <Label htmlFor="has-discount" className="cursor-pointer font-medium">
+                        Possui valor de desconto até o vencimento?
+                      </Label>
+                    </div>
+                    {!hasDiscount && (
+                      <p className="text-xs text-muted-foreground mt-2 ml-14">
+                        Os campos e a seção de desconto serão removidos do contrato.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Preencher Campos</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {currentTemplate.campos.map((campo) => (
+                    {visibleFields.map((campo) => (
                       <div key={campo}>
                         <Label>{formatFieldLabel(campo)}</Label>
                         <Input
@@ -544,9 +655,8 @@ export default function Contratos() {
                             const newVal = e.target.value;
                             setFormData((prev) => {
                               const updated = { ...prev, [campo]: newVal };
-                              // Auto-fill extenso for valor fields
                               const campoLower = campo.toLowerCase();
-                              if (campoLower.includes("valor")) {
+                              if (campoLower.includes("valor") && !campoLower.includes("extenso")) {
                                 const extensoKey = currentTemplate?.campos.find(
                                   (c) => c.toLowerCase().includes("extenso") && c.toLowerCase().includes(
                                     campoLower.includes("desconto") ? "desconto" : campoLower.includes("acordado") ? "acordado" : "valor"
@@ -567,14 +677,18 @@ export default function Contratos() {
                 </CardContent>
               </Card>
 
-              {currentTemplate.secoes_condicionais.length > 0 && (
+              {currentTemplate.secoes_condicionais.filter(
+                (s) => !s.toLowerCase().includes("desconto")
+              ).length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg">Seções Condicionais</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {currentTemplate.secoes_condicionais.map((secao) => (
+                      {currentTemplate.secoes_condicionais
+                        .filter((s) => !s.toLowerCase().includes("desconto"))
+                        .map((secao) => (
                         <div key={secao} className="flex items-center gap-3">
                           <Checkbox
                             id={secao}
@@ -594,6 +708,9 @@ export default function Contratos() {
               )}
 
               <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setPreviewOpen(true)} className="flex-1">
+                  <Eye className="h-4 w-4 mr-2" /> Pré-visualizar
+                </Button>
                 <Button onClick={handleGenerate} disabled={generating} className="flex-1">
                   {generating ? (
                     <>
@@ -606,8 +723,167 @@ export default function Contratos() {
                   )}
                 </Button>
               </div>
+
+              {/* Preview Dialog */}
+              <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Pré-visualização do Contrato</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="rounded-md border p-4 bg-background">
+                      <h3 className="font-semibold text-foreground mb-3">
+                        Modelo: {currentTemplate.nome}
+                      </h3>
+
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                          Campos preenchidos
+                        </p>
+                        {visibleFields.map((campo) => (
+                          <div key={campo} className="flex justify-between py-1 border-b border-border/50 last:border-0">
+                            <span className="text-sm font-medium text-foreground">
+                              {formatFieldLabel(campo)}
+                            </span>
+                            <span className="text-sm text-muted-foreground">
+                              {formData[campo] || <span className="italic text-destructive">Vazio</span>}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {currentTemplate.secoes_condicionais.length > 0 && (
+                        <div className="mt-4">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                            Seções condicionais
+                          </p>
+                          {currentTemplate.secoes_condicionais.map((secao) => {
+                            const isDiscountSection = secao.toLowerCase().includes("desconto");
+                            const included = isDiscountSection ? hasDiscount : (sections[secao] ?? true);
+                            return (
+                              <div key={secao} className="flex justify-between py-1 border-b border-border/50 last:border-0">
+                                <span className="text-sm font-medium text-foreground">
+                                  {formatFieldLabel(secao)}
+                                </span>
+                                <span className={`text-sm ${included ? "text-green-600" : "text-destructive"}`}>
+                                  {included ? "Incluída" : "Removida"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {!hasDiscount && currentTemplate.campos.some((c) => isDiscountField(c)) && (
+                        <p className="text-xs text-muted-foreground mt-3 italic">
+                          * Campos e seção de desconto serão removidos do contrato final.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-3">
+                      <Button variant="outline" onClick={() => setPreviewOpen(false)} className="flex-1">
+                        Voltar e Editar
+                      </Button>
+                      <Button onClick={() => { setPreviewOpen(false); handleGenerate(); }} disabled={generating} className="flex-1">
+                        {generating ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Gerando...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4 mr-2" /> Gerar e Baixar
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </>
           )}
+        </TabsContent>
+
+        {/* ============ HISTÓRICO TAB ============ */}
+        <TabsContent value="historico" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Contratos Gerados</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loadingHistory ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Modelo</TableHead>
+                      <TableHead>Dados Principais</TableHead>
+                      <TableHead>Data de Geração</TableHead>
+                      <TableHead className="w-20">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {history.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                          Nenhum contrato gerado ainda
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      history.map((item) => {
+                        const dados = (item.dados || {}) as Record<string, string>;
+                        const razao = dados.razao_social || dados.nome_fantasia || "";
+                        const cnpj = dados.cnpj || "";
+                        const tplName = (item as any).contract_templates?.nome || "—";
+
+                        return (
+                          <TableRow key={item.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-primary" />
+                                <span className="font-medium">{tplName}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                {razao && <p className="font-medium text-foreground">{razao}</p>}
+                                {cnpj && <p className="text-muted-foreground text-xs">{cnpj}</p>}
+                                {!razao && !cnpj && <span className="text-muted-foreground">—</span>}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {new Date(item.created_at).toLocaleDateString("pt-BR", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </TableCell>
+                            <TableCell>
+                              {item.file_path && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDownloadFromHistory(item.file_path!, tplName)}
+                                  title="Baixar DOCX"
+                                >
+                                  <FileDown className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
