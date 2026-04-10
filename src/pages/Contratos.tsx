@@ -388,6 +388,8 @@ export default function Contratos() {
                         <p><code className="bg-background px-1 rounded">{`{{dia_vencimento}}`}</code> — Dia do vencimento</p>
                         <p><code className="bg-background px-1 rounded">{`{{valor_acordado}}`}</code> — Valor acordado</p>
                         <p><code className="bg-background px-1 rounded">{`{{valor_desconto}}`}</code> — Valor do desconto</p>
+                        <p><code className="bg-background px-1 rounded">{`{{valor_desconto_extenso}}`}</code> — Valor desconto por extenso</p>
+                        <p><code className="bg-background px-1 rounded">{`{{valor_acordado_extenso}}`}</code> — Valor acordado por extenso</p>
                         <p><code className="bg-background px-1 rounded">{`{{nome_sistema}}`}</code> — Nome do sistema</p>
                         <p><code className="bg-background px-1 rounded">{`{{qtd_computadores}}`}</code> — Qtd computadores</p>
                         <p><code className="bg-background px-1 rounded">{`{{chave}}`}</code> — Chave de identificação</p>
@@ -538,9 +540,25 @@ export default function Contratos() {
                         <Label>{formatFieldLabel(campo)}</Label>
                         <Input
                           value={formData[campo] || ""}
-                          onChange={(e) =>
-                            setFormData((prev) => ({ ...prev, [campo]: e.target.value }))
-                          }
+                          onChange={(e) => {
+                            const newVal = e.target.value;
+                            setFormData((prev) => {
+                              const updated = { ...prev, [campo]: newVal };
+                              // Auto-fill extenso for valor fields
+                              const campoLower = campo.toLowerCase();
+                              if (campoLower.includes("valor")) {
+                                const extensoKey = currentTemplate?.campos.find(
+                                  (c) => c.toLowerCase().includes("extenso") && c.toLowerCase().includes(
+                                    campoLower.includes("desconto") ? "desconto" : campoLower.includes("acordado") ? "acordado" : "valor"
+                                  )
+                                );
+                                if (extensoKey) {
+                                  updated[extensoKey] = valorPorExtenso(newVal);
+                                }
+                              }
+                              return updated;
+                            });
+                          }}
                           placeholder={`Digite ${formatFieldLabel(campo).toLowerCase()}`}
                         />
                       </div>
