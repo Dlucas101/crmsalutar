@@ -1187,8 +1187,6 @@ export default function Contratos() {
                                 >
                                   <FileDown className="h-4 w-4" />
                                 </Button>
-                                  <FileDown className="h-4 w-4" />
-                                </Button>
                               )}
                             </TableCell>
                           </TableRow>
