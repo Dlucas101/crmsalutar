@@ -10,6 +10,9 @@ const corsHeaders = {
 const DOCX_CONTENT_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
+const PDF_BUCKET = "contratos-gerados";
+const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
+
 // ---------- helpers ----------
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -35,9 +38,7 @@ async function loadDocxXml(buffer: ArrayBuffer): Promise<{ zip: JSZip; xml: stri
 }
 
 function extractMarkers(xml: string): { campos: string[]; secoes: string[] } {
-  // Word frequently splits {{field}} across multiple XML tags. Strip tags first.
   const plainText = xml.replace(/<[^>]+>/g, "");
-
   const fieldRegex = /\{\{([^#/}][^}]*)\}\}/g;
   const sectionRegex = /\{\{#([^}]+)\}\}/g;
 
@@ -54,7 +55,6 @@ function extractMarkers(xml: string): { campos: string[]; secoes: string[] } {
       campos.push(field);
     }
   }
-
   while ((match = sectionRegex.exec(plainText)) !== null) {
     const section = match[1].trim();
     if (!seenSections.has(section)) {
@@ -62,7 +62,6 @@ function extractMarkers(xml: string): { campos: string[]; secoes: string[] } {
       secoes.push(section);
     }
   }
-
   return { campos, secoes };
 }
 
@@ -85,10 +84,7 @@ function keepConditionalSection(xml: string, section: string): string {
 
 function replacePlaceholder(xml: string, key: string, value: string): string {
   const safeValue = value ?? "";
-  // Direct replacement covers placeholders in a single run.
   let result = xml.split(`{{${key}}}`).join(safeValue);
-
-  // Handle Word's XML splitting of placeholders across runs.
   const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const xmlTagPattern = "(?:<[^>]*>)*";
   const splitPattern = escapedKey.split("").join(xmlTagPattern);
@@ -98,6 +94,144 @@ function replacePlaceholder(xml: string, key: string, value: string): string {
   );
   result = result.replace(regex, safeValue);
   return result;
+}
+
+// Apply sections + placeholders, returning the final document XML.
+function fillTemplate(
+  xml: string,
+  dados: Record<string, string>,
+  sectionFlags: Record<string, boolean>,
+  sectionNames: string[],
+): string {
+  let out = xml;
+  for (const section of sectionNames) {
+    const include = sectionFlags[section] ?? false;
+    out = include
+      ? keepConditionalSection(out, section)
+      : removeConditionalSection(out, section);
+  }
+  for (const [key, value] of Object.entries(dados)) {
+    out = replacePlaceholder(out, String(key), String(value ?? ""));
+  }
+  return out;
+}
+
+// Convert filled document.xml to a structured plain-text representation,
+// preserving paragraphs and rough alignment.
+function docxXmlToText(xml: string): { paragraphs: { align: string; text: string }[] } {
+  const paragraphs: { align: string; text: string }[] = [];
+  // Match each w:p block
+  const paragraphRegex = /<w:p\b[^>]*>([\s\S]*?)<\/w:p>/g;
+  let pMatch: RegExpExecArray | null;
+  while ((pMatch = paragraphRegex.exec(xml)) !== null) {
+    const inner = pMatch[1];
+    // Detect alignment
+    const alignMatch = inner.match(/<w:jc\s+w:val="([^"]+)"/);
+    const align = alignMatch ? alignMatch[1] : "left";
+    // Extract text from <w:t> tags (including preserve-space variant)
+    const textRegex = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g;
+    let text = "";
+    let tMatch: RegExpExecArray | null;
+    while ((tMatch = textRegex.exec(inner)) !== null) {
+      text += tMatch[1];
+    }
+    // Decode XML entities
+    text = text
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'");
+    paragraphs.push({ align, text });
+  }
+  return { paragraphs };
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function buildHtml(
+  paragraphs: { align: string; text: string }[],
+  title: string,
+): string {
+  const alignMap: Record<string, string> = {
+    left: "left",
+    right: "right",
+    center: "center",
+    both: "justify",
+    justify: "justify",
+    start: "left",
+    end: "right",
+  };
+  const body = paragraphs
+    .map((p) => {
+      const align = alignMap[p.align] || "left";
+      const text = p.text.trim();
+      if (!text) return `<p class="empty">&nbsp;</p>`;
+      return `<p style="text-align:${align}">${escapeHtml(text)}</p>`;
+    })
+    .join("\n");
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>${escapeHtml(title)}</title>
+<style>
+  @page { size: A4; margin: 2.5cm 2cm; }
+  * { box-sizing: border-box; }
+  html, body {
+    font-family: "Times New Roman", Times, serif;
+    font-size: 12pt;
+    line-height: 1.55;
+    color: #000;
+    background: #fff;
+    margin: 0;
+    padding: 0;
+  }
+  p { margin: 0 0 10px 0; text-align: justify; }
+  p.empty { margin: 0 0 6px 0; min-height: 1em; }
+</style>
+</head>
+<body>
+${body}
+</body>
+</html>`;
+}
+
+async function htmlToPdfViaBrowserless(html: string): Promise<Uint8Array> {
+  const apiKey = Deno.env.get("BROWSERLESS_API_KEY");
+  if (!apiKey) {
+    throw new Error("BROWSERLESS_API_KEY não configurada");
+  }
+  const url = `https://production-sfo.browserless.io/pdf?token=${apiKey}`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      html,
+      options: {
+        format: "A4",
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: { top: "2.5cm", bottom: "2.5cm", left: "2cm", right: "2cm" },
+      },
+      gotoOptions: { waitUntil: "networkidle0" },
+    }),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Browserless falhou [${resp.status}]: ${errText.slice(0, 300)}`);
+  }
+  const ab = await resp.arrayBuffer();
+  return new Uint8Array(ab);
 }
 
 // ---------- handler ----------
@@ -139,99 +273,84 @@ serve(async (req: Request) => {
       return errorResponse("Ação obrigatória", 400);
     }
 
-    // ---------- parse: extract fields/sections from uploaded DOCX ----------
+    // ---------- parse ----------
     if (action === "parse") {
       if (!file_path || typeof file_path !== "string") {
         return errorResponse("file_path obrigatório", 400);
       }
-
       const { data: fileData, error: fileError } = await supabase.storage
         .from("contracts")
         .download(file_path);
-
       if (fileError || !fileData) {
         return errorResponse("Arquivo não encontrado", 404);
       }
-
       const buffer = await fileData.arrayBuffer();
       const { xml } = await loadDocxXml(buffer);
       const { campos, secoes: secoes_condicionais } = extractMarkers(xml);
-
       return jsonResponse({ campos, secoes_condicionais });
     }
 
-    // ---------- generate: fill template and return DOCX ----------
-    if (action === "generate") {
+    // Shared loader for generate / generate-pdf
+    async function loadFilledDocx(): Promise<{
+      template: any;
+      filledXml: string;
+      zip: JSZip;
+    }> {
       if (!template_id || typeof template_id !== "string") {
-        return errorResponse("template_id obrigatório", 400);
+        throw new Error("template_id obrigatório");
       }
       if (!dados || typeof dados !== "object") {
-        return errorResponse("dados obrigatórios", 400);
+        throw new Error("dados obrigatórios");
       }
-
       const { data: template, error: tplError } = await supabase
         .from("contract_templates")
         .select("*")
         .eq("id", template_id)
         .single();
-
       if (tplError || !template) {
-        return errorResponse("Modelo não encontrado", 404);
+        throw new Error("Modelo não encontrado");
       }
-
       const { data: fileData, error: fileError } = await supabase.storage
         .from("contracts")
         .download(template.file_path);
-
       if (fileError || !fileData) {
-        return errorResponse("Arquivo do modelo não encontrado", 404);
+        throw new Error("Arquivo do modelo não encontrado");
       }
-
       const buffer = await fileData.arrayBuffer();
       const { zip } = await loadDocxXml(buffer);
-      let xmlContent = await zip.file("word/document.xml")!.async("string");
-
-      // Apply conditional sections.
+      const xmlContent = await zip.file("word/document.xml")!.async("string");
       const sectionNames: string[] = Array.isArray(template.secoes_condicionais)
         ? template.secoes_condicionais
         : [];
       const sectionFlags: Record<string, boolean> = (secoes ?? {}) as Record<string, boolean>;
+      const filledXml = fillTemplate(
+        xmlContent,
+        dados as Record<string, string>,
+        sectionFlags,
+        sectionNames,
+      );
+      return { template, filledXml, zip };
+    }
 
-      for (const section of sectionNames) {
-        const include = sectionFlags[section] ?? false;
-        xmlContent = include
-          ? keepConditionalSection(xmlContent, section)
-          : removeConditionalSection(xmlContent, section);
-      }
-
-      // Replace placeholders.
-      for (const [key, value] of Object.entries(dados as Record<string, string>)) {
-        xmlContent = replacePlaceholder(xmlContent, String(key), String(value ?? ""));
-      }
-
-      zip.file("word/document.xml", xmlContent);
+    // ---------- generate (DOCX) ----------
+    if (action === "generate") {
+      const { template, filledXml, zip } = await loadFilledDocx();
+      zip.file("word/document.xml", filledXml);
       const outputBuffer = await zip.generateAsync({ type: "uint8array" });
 
-      // Persist generated contract.
       const outputPath = `generated/${user.id}/${Date.now()}.docx`;
       const { error: uploadError } = await supabase.storage
         .from("contracts")
         .upload(outputPath, outputBuffer, { contentType: DOCX_CONTENT_TYPE });
-
-      if (uploadError) {
-        console.error("Upload error:", uploadError);
-      }
+      if (uploadError) console.error("Upload error:", uploadError);
 
       const { error: insertError } = await supabase.from("generated_contracts").insert({
-        template_id,
+        template_id: template.id,
         dados,
         file_path: outputPath,
         generated_by: user.id,
       });
-
-      if (insertError) {
-        console.error("Insert error:", insertError);
-      }
+      if (insertError) console.error("Insert error:", insertError);
 
       return new Response(outputBuffer, {
         headers: {
@@ -240,6 +359,68 @@ serve(async (req: Request) => {
           "Content-Disposition": `attachment; filename="contrato.docx"`,
         },
       });
+    }
+
+    // ---------- generate-pdf ----------
+    if (action === "generate-pdf") {
+      const { template, filledXml } = await loadFilledDocx();
+
+      // Convert filled XML -> structured text -> HTML -> PDF
+      const { paragraphs } = docxXmlToText(filledXml);
+      if (paragraphs.length === 0) {
+        return errorResponse("Não foi possível extrair conteúdo do modelo", 500);
+      }
+      const html = buildHtml(paragraphs, template.nome || "Contrato");
+      const pdfBytes = await htmlToPdfViaBrowserless(html);
+
+      const outputPath = `contratos/${user.id}/${Date.now()}.pdf`;
+      const { error: uploadError } = await supabase.storage
+        .from(PDF_BUCKET)
+        .upload(outputPath, pdfBytes, {
+          contentType: "application/pdf",
+          upsert: false,
+        });
+      if (uploadError) {
+        console.error("PDF upload error:", uploadError);
+        return errorResponse(`Falha ao salvar PDF: ${uploadError.message}`, 500);
+      }
+
+      const { data: signed, error: signError } = await supabase.storage
+        .from(PDF_BUCKET)
+        .createSignedUrl(outputPath, SIGNED_URL_TTL_SECONDS);
+      if (signError || !signed?.signedUrl) {
+        console.error("Signed URL error:", signError);
+        return errorResponse("Falha ao gerar URL do PDF", 500);
+      }
+
+      // Persist history (file_path stored for re-signing later if needed)
+      const { error: insertError } = await supabase.from("generated_contracts").insert({
+        template_id: template.id,
+        dados,
+        file_path: outputPath,
+        generated_by: user.id,
+      });
+      if (insertError) console.error("Insert error:", insertError);
+
+      return jsonResponse({
+        url: signed.signedUrl,
+        file_path: outputPath,
+        expires_in: SIGNED_URL_TTL_SECONDS,
+      });
+    }
+
+    // ---------- sign-url (re-sign existing PDF for history downloads) ----------
+    if (action === "sign-url") {
+      if (!file_path || typeof file_path !== "string") {
+        return errorResponse("file_path obrigatório", 400);
+      }
+      const { data: signed, error: signError } = await supabase.storage
+        .from(PDF_BUCKET)
+        .createSignedUrl(file_path, SIGNED_URL_TTL_SECONDS);
+      if (signError || !signed?.signedUrl) {
+        return errorResponse("Falha ao gerar URL", 500);
+      }
+      return jsonResponse({ url: signed.signedUrl, expires_in: SIGNED_URL_TTL_SECONDS });
     }
 
     return errorResponse("Ação inválida", 400);

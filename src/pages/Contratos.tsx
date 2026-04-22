@@ -448,12 +448,15 @@ export default function Contratos() {
     const payload = buildGenerationPayload();
     if (!payload) return;
 
+    // Pre-open a tab synchronously so popup-blockers don't kill it after the await.
+    const popup = window.open("about:blank", "_blank");
+
     setGenerating(true);
-    const loadingToast = toast.loading("Gerando contrato...");
+    const loadingToast = toast.loading("Gerando contrato em PDF...");
     try {
       const response = await supabase.functions.invoke("process-contract", {
         body: {
-          action: "generate",
+          action: "generate-pdf",
           template_id: selectedTemplate,
           dados: payload.finalData,
           secoes: payload.finalSections,
@@ -461,19 +464,24 @@ export default function Contratos() {
       });
 
       if (response.error) throw new Error(response.error.message);
+      const url = (response.data as { url?: string })?.url;
+      if (!url) throw new Error("URL do PDF não retornada");
 
-      const blob = new Blob([response.data], {
-        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      });
-      downloadBlob(blob, `contrato_${currentTemplate?.nome || "gerado"}.docx`);
+      if (popup && !popup.closed) {
+        popup.location.href = url;
+      } else {
+        // Popup blocked — fallback to opening directly (may also be blocked).
+        window.open(url, "_blank");
+        toast.warning("Permita pop-ups para abrir o PDF automaticamente.");
+      }
 
       toast.dismiss(loadingToast);
-      toast.success("Contrato gerado com sucesso!", {
-        description: "O download iniciou automaticamente.",
+      toast.success("Contrato gerado!", {
+        description: "O PDF foi aberto em uma nova aba.",
       });
-      // Refresh history if user opens it next.
       fetchHistory();
     } catch (err: any) {
+      if (popup && !popup.closed) popup.close();
       toast.dismiss(loadingToast);
       toast.error("Erro ao gerar contrato", {
         description: err?.message || "Tente novamente em alguns instantes.",
@@ -483,13 +491,30 @@ export default function Contratos() {
     }
   };
 
-  const handleDownloadFromHistory = async (filePath: string, templateName: string) => {
+  const handleDownloadFromHistory = async (filePath: string) => {
+    // Pre-open tab synchronously to avoid pop-up blockers.
+    const popup = window.open("about:blank", "_blank");
     try {
-      const { data, error } = await supabase.storage.from("contracts").download(filePath);
-      if (error) throw error;
-      downloadBlob(data, `contrato_${templateName}.docx`);
+      // History entries may be either old DOCX (in "contracts") or new PDF (in "contratos-gerados").
+      const isPdf = filePath.toLowerCase().endsWith(".pdf");
+      if (isPdf) {
+        const response = await supabase.functions.invoke("process-contract", {
+          body: { action: "sign-url", file_path: filePath },
+        });
+        if (response.error) throw new Error(response.error.message);
+        const url = (response.data as { url?: string })?.url;
+        if (!url) throw new Error("URL não retornada");
+        if (popup && !popup.closed) popup.location.href = url;
+        else window.open(url, "_blank");
+      } else {
+        if (popup && !popup.closed) popup.close();
+        const { data, error } = await supabase.storage.from("contracts").download(filePath);
+        if (error) throw error;
+        downloadBlob(data, `contrato.docx`);
+      }
     } catch (err: any) {
-      toast.error("Erro ao baixar contrato", { description: err.message });
+      if (popup && !popup.closed) popup.close();
+      toast.error("Erro ao abrir contrato", { description: err.message });
     }
   };
 
@@ -922,11 +947,11 @@ export default function Contratos() {
                     >
                       {generating ? (
                         <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Gerando...
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Gerando PDF...
                         </>
                       ) : (
                         <>
-                          <Download className="h-4 w-4 mr-2" /> Gerar e Baixar DOCX
+                          <FileDown className="h-4 w-4 mr-2" /> Gerar Contrato (PDF)
                         </>
                       )}
                     </Button>
@@ -1077,11 +1102,11 @@ export default function Contratos() {
                       >
                         {generating ? (
                           <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Gerando...
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Gerando PDF...
                           </>
                         ) : (
                           <>
-                            <Download className="h-4 w-4 mr-2" /> Gerar e Baixar
+                            <FileDown className="h-4 w-4 mr-2" /> Gerar PDF
                           </>
                         )}
                       </Button>
@@ -1157,10 +1182,8 @@ export default function Contratos() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() =>
-                                    handleDownloadFromHistory(item.file_path!, tplName)
-                                  }
-                                  title="Baixar DOCX"
+                                  onClick={() => handleDownloadFromHistory(item.file_path!)}
+                                  title="Abrir contrato"
                                 >
                                   <FileDown className="h-4 w-4" />
                                 </Button>
