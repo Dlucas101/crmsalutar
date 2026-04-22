@@ -7,15 +7,100 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-async function extractTextFromDocx(buffer: ArrayBuffer): Promise<string> {
+const DOCX_CONTENT_TYPE =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+// ---------- helpers ----------
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function errorResponse(message: string, status = 400): Response {
+  return jsonResponse({ error: message }, status);
+}
+
+async function loadDocxXml(buffer: ArrayBuffer): Promise<{ zip: JSZip; xml: string }> {
   const zip = new JSZip();
   await zip.loadAsync(buffer);
   const docXml = zip.file("word/document.xml");
   if (!docXml) {
     throw new Error("document.xml não encontrado no DOCX");
   }
-  return await docXml.async("string");
+  const xml = await docXml.async("string");
+  return { zip, xml };
 }
+
+function extractMarkers(xml: string): { campos: string[]; secoes: string[] } {
+  // Word frequently splits {{field}} across multiple XML tags. Strip tags first.
+  const plainText = xml.replace(/<[^>]+>/g, "");
+
+  const fieldRegex = /\{\{([^#/}][^}]*)\}\}/g;
+  const sectionRegex = /\{\{#([^}]+)\}\}/g;
+
+  const campos: string[] = [];
+  const secoes: string[] = [];
+  const seenFields = new Set<string>();
+  const seenSections = new Set<string>();
+
+  let match: RegExpExecArray | null;
+  while ((match = fieldRegex.exec(plainText)) !== null) {
+    const field = match[1].trim();
+    if (!seenFields.has(field)) {
+      seenFields.add(field);
+      campos.push(field);
+    }
+  }
+
+  while ((match = sectionRegex.exec(plainText)) !== null) {
+    const section = match[1].trim();
+    if (!seenSections.has(section)) {
+      seenSections.add(section);
+      secoes.push(section);
+    }
+  }
+
+  return { campos, secoes };
+}
+
+function removeConditionalSection(xml: string, section: string): string {
+  const openTag = `{{#${section}}}`;
+  const closeTag = `{{/${section}}}`;
+  const openIdx = xml.indexOf(openTag);
+  const closeIdx = xml.indexOf(closeTag);
+  if (openIdx !== -1 && closeIdx !== -1 && closeIdx > openIdx) {
+    return xml.substring(0, openIdx) + xml.substring(closeIdx + closeTag.length);
+  }
+  return xml;
+}
+
+function keepConditionalSection(xml: string, section: string): string {
+  const openTag = `{{#${section}}}`;
+  const closeTag = `{{/${section}}}`;
+  return xml.split(openTag).join("").split(closeTag).join("");
+}
+
+function replacePlaceholder(xml: string, key: string, value: string): string {
+  const safeValue = value ?? "";
+  // Direct replacement covers placeholders in a single run.
+  let result = xml.split(`{{${key}}}`).join(safeValue);
+
+  // Handle Word's XML splitting of placeholders across runs.
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const xmlTagPattern = "(?:<[^>]*>)*";
+  const splitPattern = escapedKey.split("").join(xmlTagPattern);
+  const regex = new RegExp(
+    `\\{${xmlTagPattern}\\{${xmlTagPattern}${splitPattern}${xmlTagPattern}\\}${xmlTagPattern}\\}`,
+    "g",
+  );
+  result = result.replace(regex, safeValue);
+  return result;
+}
+
+// ---------- handler ----------
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -25,36 +110,39 @@ serve(async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return errorResponse("Não autorizado", 401);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabase = createClient(supabaseUrl, serviceKey);
 
-    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
+    const anonClient = createClient(supabaseUrl, anonKey);
     const { data: { user }, error: userError } = await anonClient.auth.getUser(
-      authHeader.replace("Bearer ", "")
+      authHeader.replace("Bearer ", ""),
     );
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return errorResponse("Não autorizado", 401);
     }
 
-    const { action, template_id, file_path, dados, secoes } = await req.json();
+    let payload: any;
+    try {
+      payload = await req.json();
+    } catch {
+      return errorResponse("Corpo da requisição inválido", 400);
+    }
 
-    // Action: parse - extract fields from uploaded DOCX
+    const { action, template_id, file_path, dados, secoes } = payload ?? {};
+
+    if (!action || typeof action !== "string") {
+      return errorResponse("Ação obrigatória", 400);
+    }
+
+    // ---------- parse: extract fields/sections from uploaded DOCX ----------
     if (action === "parse") {
-      if (!file_path) {
-        return new Response(JSON.stringify({ error: "file_path obrigatório" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (!file_path || typeof file_path !== "string") {
+        return errorResponse("file_path obrigatório", 400);
       }
 
       const { data: fileData, error: fileError } = await supabase.storage
@@ -62,57 +150,23 @@ serve(async (req: Request) => {
         .download(file_path);
 
       if (fileError || !fileData) {
-        return new Response(JSON.stringify({ error: "Arquivo não encontrado" }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return errorResponse("Arquivo não encontrado", 404);
       }
 
       const buffer = await fileData.arrayBuffer();
-      const xmlText = await extractTextFromDocx(buffer);
+      const { xml } = await loadDocxXml(buffer);
+      const { campos, secoes: secoes_condicionais } = extractMarkers(xml);
 
-      // Word often splits {{field}} across multiple XML tags like:
-      // <w:r><w:t>{{</w:t></w:r><w:r><w:t>field</w:t></w:r><w:r><w:t>}}</w:t></w:r>
-      // So we strip XML tags first to get plain text, then search for markers
-      const plainText = xmlText.replace(/<[^>]+>/g, "");
-
-      const fieldRegex = /\{\{([^#/}][^}]*)\}\}/g;
-      const sectionRegex = /\{\{#([^}]+)\}\}/g;
-
-      const campos: string[] = [];
-      const secoes_condicionais: string[] = [];
-      const seenFields = new Set<string>();
-      const seenSections = new Set<string>();
-
-      let match;
-      while ((match = fieldRegex.exec(plainText)) !== null) {
-        const field = match[1].trim();
-        if (!seenFields.has(field)) {
-          seenFields.add(field);
-          campos.push(field);
-        }
-      }
-
-      while ((match = sectionRegex.exec(plainText)) !== null) {
-        const section = match[1].trim();
-        if (!seenSections.has(section)) {
-          seenSections.add(section);
-          secoes_condicionais.push(section);
-        }
-      }
-
-      return new Response(JSON.stringify({ campos, secoes_condicionais }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ campos, secoes_condicionais });
     }
 
-    // Action: generate - fill template and return DOCX
+    // ---------- generate: fill template and return DOCX ----------
     if (action === "generate") {
-      if (!template_id || !dados) {
-        return new Response(JSON.stringify({ error: "template_id e dados obrigatórios" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (!template_id || typeof template_id !== "string") {
+        return errorResponse("template_id obrigatório", 400);
+      }
+      if (!dados || typeof dados !== "object") {
+        return errorResponse("dados obrigatórios", 400);
       }
 
       const { data: template, error: tplError } = await supabase
@@ -122,10 +176,7 @@ serve(async (req: Request) => {
         .single();
 
       if (tplError || !template) {
-        return new Response(JSON.stringify({ error: "Modelo não encontrado" }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return errorResponse("Modelo não encontrado", 404);
       }
 
       const { data: fileData, error: fileError } = await supabase.storage
@@ -133,104 +184,67 @@ serve(async (req: Request) => {
         .download(template.file_path);
 
       if (fileError || !fileData) {
-        return new Response(JSON.stringify({ error: "Arquivo do modelo não encontrado" }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return errorResponse("Arquivo do modelo não encontrado", 404);
       }
 
       const buffer = await fileData.arrayBuffer();
-      const zip = new JSZip();
-      await zip.loadAsync(buffer);
+      const { zip } = await loadDocxXml(buffer);
+      let xmlContent = await zip.file("word/document.xml")!.async("string");
 
-      const docXmlFile = zip.file("word/document.xml");
-      if (!docXmlFile) {
-        return new Response(JSON.stringify({ error: "document.xml não encontrado" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      // Apply conditional sections.
+      const sectionNames: string[] = Array.isArray(template.secoes_condicionais)
+        ? template.secoes_condicionais
+        : [];
+      const sectionFlags: Record<string, boolean> = (secoes ?? {}) as Record<string, boolean>;
 
-      let xmlContent = await docXmlFile.async("string");
-
-      const sectionNames: string[] = template.secoes_condicionais || [];
-
-      // Handle conditional sections
       for (const section of sectionNames) {
-        const include = secoes?.[section] ?? false;
-        const openTag = `{{#${section}}}`;
-        const closeTag = `{{/${section}}}`;
-
-        if (!include) {
-          // Remove entire section including tags (handling XML-split tags)
-          const plainOpen = openTag.replace(/[{}#]/g, (c) => `(?:<[^>]*>)*\\` + c);
-          const plainClose = closeTag.replace(/[{}\/]/g, (c) => `(?:<[^>]*>)*\\` + c);
-          // Simple approach: find and remove between tags in plain text mapped back
-          const openIdx = xmlContent.indexOf(openTag);
-          const closeIdx = xmlContent.indexOf(closeTag);
-          if (openIdx !== -1 && closeIdx !== -1) {
-            xmlContent = xmlContent.substring(0, openIdx) +
-              xmlContent.substring(closeIdx + closeTag.length);
-          }
-        } else {
-          xmlContent = xmlContent.split(openTag).join("").split(closeTag).join("");
-        }
+        const include = sectionFlags[section] ?? false;
+        xmlContent = include
+          ? keepConditionalSection(xmlContent, section)
+          : removeConditionalSection(xmlContent, section);
       }
 
-      // Replace {{field}} placeholders - handle Word XML splitting
+      // Replace placeholders.
       for (const [key, value] of Object.entries(dados as Record<string, string>)) {
-        const placeholder = `{{${key}}}`;
-        // Direct replacement first
-        xmlContent = xmlContent.split(placeholder).join(value || "");
-
-        // Handle XML-split placeholders
-        const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const chars = escapedKey.split("");
-        const xmlTagPattern = "(?:<[^>]*>)*";
-        const splitPattern = chars.join(xmlTagPattern);
-        const regex = new RegExp(
-          `\\{${xmlTagPattern}\\{${xmlTagPattern}${splitPattern}${xmlTagPattern}\\}${xmlTagPattern}\\}`,
-          "g"
-        );
-        xmlContent = xmlContent.replace(regex, value || "");
+        xmlContent = replacePlaceholder(xmlContent, String(key), String(value ?? ""));
       }
 
       zip.file("word/document.xml", xmlContent);
       const outputBuffer = await zip.generateAsync({ type: "uint8array" });
 
-      // Save generated contract
+      // Persist generated contract.
       const outputPath = `generated/${user.id}/${Date.now()}.docx`;
-      await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from("contracts")
-        .upload(outputPath, outputBuffer, {
-          contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        });
+        .upload(outputPath, outputBuffer, { contentType: DOCX_CONTENT_TYPE });
 
-      await supabase.from("generated_contracts").insert({
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+      }
+
+      const { error: insertError } = await supabase.from("generated_contracts").insert({
         template_id,
         dados,
         file_path: outputPath,
         generated_by: user.id,
       });
 
+      if (insertError) {
+        console.error("Insert error:", insertError);
+      }
+
       return new Response(outputBuffer, {
         headers: {
           ...corsHeaders,
-          "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "Content-Type": DOCX_CONTENT_TYPE,
           "Content-Disposition": `attachment; filename="contrato.docx"`,
         },
       });
     }
 
-    return new Response(JSON.stringify({ error: "Ação inválida" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (error) {
-    console.error("Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errorResponse("Ação inválida", 400);
+  } catch (error: any) {
+    console.error("process-contract error:", error);
+    return errorResponse(error?.message || "Erro interno", 500);
   }
 });
