@@ -947,11 +947,11 @@ export default function Contratos() {
                     >
                       {generating ? (
                         <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Gerando...
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Gerando PDF...
                         </>
                       ) : (
                         <>
-                          <Download className="h-4 w-4 mr-2" /> Gerar e Baixar DOCX
+                          <FileDown className="h-4 w-4 mr-2" /> Gerar Contrato (PDF)
                         </>
                       )}
                     </Button>
@@ -1102,11 +1102,11 @@ export default function Contratos() {
                       >
                         {generating ? (
                           <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Gerando...
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Gerando PDF...
                           </>
                         ) : (
                           <>
-                            <Download className="h-4 w-4 mr-2" /> Gerar e Baixar
+                            <FileDown className="h-4 w-4 mr-2" /> Gerar PDF
                           </>
                         )}
                       </Button>
@@ -1182,11 +1182,11 @@ export default function Contratos() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() =>
-                                    handleDownloadFromHistory(item.file_path!, tplName)
-                                  }
-                                  title="Baixar DOCX"
+                                  onClick={() => handleDownloadFromHistory(item.file_path!)}
+                                  title="Abrir contrato"
                                 >
+                                  <FileDown className="h-4 w-4" />
+                                </Button>
                                   <FileDown className="h-4 w-4" />
                                 </Button>
                               )}
