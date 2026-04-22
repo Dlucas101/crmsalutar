@@ -792,7 +792,7 @@ export default function Contratos() {
                         </Badge>
                       )}
                       {touched && missingFields.length === 0 && requiredFields.length > 0 && (
-                        <Badge className="gap-1 bg-emerald-600 hover:bg-emerald-600 text-white">
+                        <Badge className="gap-1 bg-[hsl(var(--neon-green))] hover:bg-[hsl(var(--neon-green))] text-white">
                           <CheckCircle2 className="h-3 w-3" />
                           Tudo preenchido
                         </Badge>
@@ -958,7 +958,7 @@ export default function Contratos() {
                         {currentTemplate.nome}
                       </Badge>
                       {missingFields.length === 0 ? (
-                        <Badge className="gap-1 bg-emerald-600 hover:bg-emerald-600 text-white">
+                        <Badge className="gap-1 bg-[hsl(var(--neon-green))] hover:bg-[hsl(var(--neon-green))] text-white">
                           <CheckCircle2 className="h-3 w-3" />
                           Pronto para gerar
                         </Badge>
@@ -1039,7 +1039,7 @@ export default function Contratos() {
                                   variant={included ? "default" : "outline"}
                                   className={
                                     included
-                                      ? "bg-emerald-600 hover:bg-emerald-600 text-white"
+                                      ? "bg-[hsl(var(--neon-green))] hover:bg-[hsl(var(--neon-green))] text-white"
                                       : "text-muted-foreground"
                                   }
                                 >
