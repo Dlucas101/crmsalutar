@@ -5,6 +5,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -17,12 +23,11 @@ Deno.serve(async (req) => {
     );
 
     // Verify caller is admin
-    const authHeader = req.headers.get("Authorization")!;
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return json({ error: "Não autorizado" }, 401);
     const token = authHeader.replace("Bearer ", "");
     const { data: { user: caller } } = await supabaseAdmin.auth.getUser(token);
-    if (!caller) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
+    if (!caller) return json({ error: "Não autorizado" }, 401);
 
     const { data: roleData } = await supabaseAdmin
       .from("user_roles")
@@ -31,55 +36,77 @@ Deno.serve(async (req) => {
       .single();
 
     if (roleData?.role !== "admin") {
-      return new Response(JSON.stringify({ error: "Apenas administradores podem realizar esta ação" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return json({ error: "Apenas administradores podem realizar esta ação" }, 403);
     }
 
-    const { user_id, password, nome, email, action } = await req.json();
+    const body = await req.json();
+    const { user_id, password, nome, email, action } = body;
 
+    // ===== Action: create_user (admin creates a new member) =====
+    if (action === "create_user") {
+      if (!email || !password || !nome) {
+        return json({ error: "nome, email e senha são obrigatórios" }, 400);
+      }
+      if (typeof password !== "string" || password.length < 6) {
+        return json({ error: "Senha deve ter pelo menos 6 caracteres" }, 400);
+      }
+
+      const { data, error } = await supabaseAdmin.auth.admin.createUser({
+        email: String(email).trim(),
+        password,
+        email_confirm: true,
+        user_metadata: { nome: String(nome).trim() },
+      });
+
+      if (error) {
+        const msg = error.message?.toLowerCase().includes("already")
+          ? "Email já cadastrado"
+          : error.message;
+        return json({ error: msg }, 400);
+      }
+
+      return json({ success: true, user_id: data.user?.id });
+    }
+
+    // All other actions require user_id
     if (!user_id) {
-      return new Response(JSON.stringify({ error: "user_id é obrigatório" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return json({ error: "user_id é obrigatório" }, 400);
     }
 
-    // Action: get_email - just return the user's current email
+    // Action: get_email
     if (action === "get_email") {
       const { data: { user: targetUser }, error } = await supabaseAdmin.auth.admin.getUserById(user_id);
-      if (error || !targetUser) {
-        return new Response(JSON.stringify({ error: "Usuário não encontrado" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-      return new Response(JSON.stringify({ email: targetUser.email }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (error || !targetUser) return json({ error: "Usuário não encontrado" }, 404);
+      return json({ email: targetUser.email });
     }
 
     // Update auth fields (password and/or email)
     const authUpdate: Record<string, string> = {};
     if (password) {
       if (password.length < 6) {
-        return new Response(JSON.stringify({ error: "Senha deve ter pelo menos 6 caracteres" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return json({ error: "Senha deve ter pelo menos 6 caracteres" }, 400);
       }
       authUpdate.password = password;
     }
-    if (email) {
-      authUpdate.email = email;
-    }
+    if (email) authUpdate.email = email;
+
     if (Object.keys(authUpdate).length > 0) {
       const { error } = await supabaseAdmin.auth.admin.updateUserById(user_id, authUpdate);
-      if (error) {
-        return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
+      if (error) return json({ error: error.message }, 400);
     }
 
-    // Update profile name if provided
+    // Update profile name
     if (nome !== undefined) {
       const { error } = await supabaseAdmin
         .from("profiles")
         .update({ nome })
         .eq("id", user_id);
-      if (error) {
-        return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
+      if (error) return json({ error: error.message }, 400);
     }
 
-    return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return json({ success: true });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const message = err instanceof Error ? err.message : "Erro interno";
+    return json({ error: message }, 500);
   }
 });

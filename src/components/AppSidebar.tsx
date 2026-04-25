@@ -37,18 +37,27 @@ const ROLE_LABELS: Record<string, string> = {
   vendas: "Vendas",
 };
 
-const navItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Leads", url: "/leads", icon: Target },
-  { title: "Clientes", url: "/clientes", icon: Users },
-  
-  { title: "Minhas Tarefas", url: "/tarefas", icon: CheckSquare },
-  { title: "Visitas", url: "/visitas", icon: CalendarDays },
-  { title: "Metas", url: "/metas", icon: Trophy },
-  { title: "Comissões", url: "/comissoes", icon: DollarSign },
-  { title: "Contratos", url: "/contratos", icon: FileSignature },
-  { title: "Membros", url: "/membros", icon: UserCog },
-  { title: "Relatórios", url: "/relatorios", icon: FileSpreadsheet },
+const navGroups = [
+  {
+    label: "Operação",
+    items: [
+      { title: "Dashboard", url: "/", icon: LayoutDashboard },
+      { title: "Leads", url: "/leads", icon: Target },
+      { title: "Clientes", url: "/clientes", icon: Users },
+      { title: "Minhas Tarefas", url: "/tarefas", icon: CheckSquare },
+      { title: "Visitas", url: "/visitas", icon: CalendarDays },
+    ],
+  },
+  {
+    label: "Gestão",
+    items: [
+      { title: "Metas", url: "/metas", icon: Trophy },
+      { title: "Comissões", url: "/comissoes", icon: DollarSign },
+      { title: "Contratos", url: "/contratos", icon: FileSignature },
+      { title: "Membros", url: "/membros", icon: UserCog },
+      { title: "Relatórios", url: "/relatorios", icon: FileSpreadsheet },
+    ],
+  },
 ];
 
 export function AppSidebar() {
@@ -66,30 +75,32 @@ export function AppSidebar() {
       <SidebarSeparator />
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-muted-foreground text-xs uppercase tracking-wider">
-            Menu
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={item.url}
-                      end={item.url === "/"}
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-                      activeClassName="bg-sidebar-accent text-primary font-medium neon-border"
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {navGroups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel className="text-muted-foreground text-xs uppercase tracking-wider">
+              {group.label}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        end={item.url === "/"}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+                        activeClassName="bg-sidebar-accent text-primary font-medium neon-border"
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarSeparator />

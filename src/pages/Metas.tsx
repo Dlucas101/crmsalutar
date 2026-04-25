@@ -34,7 +34,7 @@ interface LeadGanho {
   nome: string;
   responsible_id: string | null;
   valor_contrato: number | null;
-  updated_at: string;
+  won_at: string | null;
 }
 
 interface HistoryEntry {
@@ -103,10 +103,10 @@ export default function Metas() {
     const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59).toISOString();
     const { data: leads } = await supabase
       .from("leads")
-      .select("id, nome, responsible_id, valor_contrato, updated_at")
+      .select("id, nome, responsible_id, valor_contrato, won_at")
       .eq("status", "fechado_ganho")
-      .gte("updated_at", startDate)
-      .lte("updated_at", endDate);
+      .gte("won_at", startDate)
+      .lte("won_at", endDate);
     const filteredLeads = (leads || []).filter((l: any) => l.responsible_id && participatingIds.has(l.responsible_id));
     setLeadsGanhos(filteredLeads as LeadGanho[]);
   };
@@ -117,7 +117,7 @@ export default function Metas() {
     const { data: allMetas } = await supabase.from("metas").select("*").order("ano", { ascending: true }).order("mes", { ascending: true });
     const { data: allProfiles } = await supabase.from("profiles").select("id, participa_comissao");
     const participatingIds = new Set((allProfiles || []).filter((p: any) => p.participa_comissao !== false).map((p) => p.id));
-    const { data: allLeads } = await supabase.from("leads").select("responsible_id, updated_at, status").eq("status", "fechado_ganho");
+    const { data: allLeads } = await supabase.from("leads").select("responsible_id, won_at, status").eq("status", "fechado_ganho");
 
     // Build last 6 months
     for (let i = 5; i >= 0; i--) {
@@ -131,8 +131,9 @@ export default function Metas() {
       const endDate = new Date(y, m, 0, 23, 59, 59);
       const fechados = (allLeads || []).filter((l: any) => {
         if (!l.responsible_id || !participatingIds.has(l.responsible_id)) return false;
-        const updated = new Date(l.updated_at);
-        return updated >= startDate && updated <= endDate;
+        if (!l.won_at) return false;
+        const wonDate = new Date(l.won_at);
+        return wonDate >= startDate && wonDate <= endDate;
       }).length;
 
       entries.push({
