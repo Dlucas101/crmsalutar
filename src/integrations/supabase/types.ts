@@ -220,6 +220,7 @@ export type Database = {
           updated_at: string
           valor_contrato: number | null
           whatsapp: string | null
+          won_at: string | null
         }
         Insert: {
           assigned_user_id?: string | null
@@ -239,6 +240,7 @@ export type Database = {
           updated_at?: string
           valor_contrato?: number | null
           whatsapp?: string | null
+          won_at?: string | null
         }
         Update: {
           assigned_user_id?: string | null
@@ -258,6 +260,7 @@ export type Database = {
           updated_at?: string
           valor_contrato?: number | null
           whatsapp?: string | null
+          won_at?: string | null
         }
         Relationships: []
       }
