@@ -37,18 +37,27 @@ const ROLE_LABELS: Record<string, string> = {
   vendas: "Vendas",
 };
 
-const navItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Leads", url: "/leads", icon: Target },
-  { title: "Clientes", url: "/clientes", icon: Users },
-  
-  { title: "Minhas Tarefas", url: "/tarefas", icon: CheckSquare },
-  { title: "Visitas", url: "/visitas", icon: CalendarDays },
-  { title: "Metas", url: "/metas", icon: Trophy },
-  { title: "Comissões", url: "/comissoes", icon: DollarSign },
-  { title: "Contratos", url: "/contratos", icon: FileSignature },
-  { title: "Membros", url: "/membros", icon: UserCog },
-  { title: "Relatórios", url: "/relatorios", icon: FileSpreadsheet },
+const navGroups = [
+  {
+    label: "Operação",
+    items: [
+      { title: "Dashboard", url: "/", icon: LayoutDashboard },
+      { title: "Leads", url: "/leads", icon: Target },
+      { title: "Clientes", url: "/clientes", icon: Users },
+      { title: "Minhas Tarefas", url: "/tarefas", icon: CheckSquare },
+      { title: "Visitas", url: "/visitas", icon: CalendarDays },
+    ],
+  },
+  {
+    label: "Gestão",
+    items: [
+      { title: "Metas", url: "/metas", icon: Trophy },
+      { title: "Comissões", url: "/comissoes", icon: DollarSign },
+      { title: "Contratos", url: "/contratos", icon: FileSignature },
+      { title: "Membros", url: "/membros", icon: UserCog },
+      { title: "Relatórios", url: "/relatorios", icon: FileSpreadsheet },
+    ],
+  },
 ];
 
 export function AppSidebar() {
