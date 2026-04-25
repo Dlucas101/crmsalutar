@@ -89,21 +89,25 @@ export default function Membros() {
       return;
     }
 
-    const { error } = await supabase.auth.signUp({
-      email: memberForm.email.trim(),
-      password: memberForm.password,
-      options: { data: { nome: memberForm.nome.trim() } },
+    const { data, error } = await supabase.functions.invoke("admin-update-user", {
+      body: {
+        action: "create_user",
+        nome: memberForm.nome.trim(),
+        email: memberForm.email.trim(),
+        password: memberForm.password,
+      },
     });
 
-    if (error) {
-      toast.error(error.message.includes("already") ? "Email já cadastrado" : "Erro ao criar membro: " + error.message);
+    if (error || data?.error) {
+      const msg = data?.error || error?.message || "Erro ao criar membro";
+      toast.error(msg);
       return;
     }
 
-    toast.success("Membro criado! Um email de confirmação foi enviado.");
+    toast.success("Membro criado com sucesso!");
     setMemberForm({ nome: "", email: "", password: "" });
     setOpenMember(false);
-    setTimeout(() => fetchAll(), 2000);
+    setTimeout(() => fetchAll(), 800);
   };
 
   const updateMemberRole = async (profileId: string, customRoleId: string) => {
