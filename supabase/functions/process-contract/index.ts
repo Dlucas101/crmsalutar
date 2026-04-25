@@ -335,7 +335,7 @@ serve(async (req: Request) => {
     // ---------- generate (DOCX) ----------
     if (action === "generate") {
       const { template, filledXml, zip } = await loadFilledDocx();
-      zip.file("word/document.xml", filledXml);
+      (zip as any).file("word/document.xml", filledXml);
       const outputBuffer = await zip.generateAsync({ type: "uint8array" });
 
       const outputPath = `generated/${user.id}/${Date.now()}.docx`;
@@ -352,7 +352,7 @@ serve(async (req: Request) => {
       });
       if (insertError) console.error("Insert error:", insertError);
 
-      return new Response(outputBuffer, {
+      return new Response(outputBuffer as BlobPart as any, {
         headers: {
           ...corsHeaders,
           "Content-Type": DOCX_CONTENT_TYPE,
