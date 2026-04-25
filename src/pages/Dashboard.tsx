@@ -59,7 +59,7 @@ export default function Dashboard() {
         supabase.from("tasks").select("*", { count: "exact", head: true }).eq("status", "concluido"),
         supabase.from("visits").select("*", { count: "exact", head: true }).eq("status", "concluido"),
         supabase.from("metas").select("quantidade_meta").eq("mes", now.getMonth() + 1).eq("ano", now.getFullYear()).maybeSingle(),
-        supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "fechado_ganho").gte("updated_at", startOfMonth).lte("updated_at", endOfMonth),
+        supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "fechado_ganho").gte("won_at", startOfMonth).lte("won_at", endOfMonth),
       ]);
 
       const { count: overdueCount } = await supabase
