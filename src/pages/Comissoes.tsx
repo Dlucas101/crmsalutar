@@ -85,7 +85,7 @@ export default function Comissoes() {
   const { data: leads } = useQuery({
     queryKey: ["comissoes-leads"],
     queryFn: async () => {
-      const { data } = await supabase.from("leads").select("id, responsible_id, status, updated_at");
+      const { data } = await supabase.from("leads").select("id, responsible_id, status, won_at");
       return data || [];
     },
   });
@@ -115,7 +115,8 @@ export default function Comissoes() {
     for (const l of leads) {
       if (l.status !== "fechado_ganho" || !l.responsible_id) continue;
       if (!participatingIds.has(l.responsible_id)) continue;
-      const d = new Date(l.updated_at);
+      if (!(l as any).won_at) continue;
+      const d = new Date((l as any).won_at);
       if (d.getMonth() + 1 === selectedMonth && d.getFullYear() === selectedYear) {
         map.set(l.responsible_id, (map.get(l.responsible_id) || 0) + 1);
       }
