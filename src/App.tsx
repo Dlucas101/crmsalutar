@@ -19,6 +19,7 @@ import Relatorios from "./pages/Relatorios";
 import Metas from "./pages/Metas";
 import Comissoes from "./pages/Comissoes";
 import Contratos from "./pages/Contratos";
+import Auditoria from "./pages/Auditoria";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -60,6 +61,7 @@ const App = () => (
               <Route path="/metas" element={<ProtectedRoute><Metas /></ProtectedRoute>} />
               <Route path="/comissoes" element={<ProtectedRoute><Comissoes /></ProtectedRoute>} />
               <Route path="/contratos" element={<ProtectedRoute><Contratos /></ProtectedRoute>} />
+              <Route path="/auditoria" element={<ProtectedRoute><Auditoria /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>

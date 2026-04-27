@@ -12,6 +12,7 @@ import {
   Trophy,
   DollarSign,
   FileSignature,
+  ShieldCheck,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -62,6 +63,15 @@ const navGroups = [
 
 export function AppSidebar() {
   const { profile, role, signOut } = useAuth();
+  const visibleNavGroups = navGroups.map((group) => ({
+    ...group,
+    items: [
+      ...group.items,
+      ...(group.label === "Gestão" && role === "admin"
+        ? [{ title: "Auditoria", url: "/auditoria", icon: ShieldCheck }]
+        : []),
+    ],
+  }));
 
   return (
     <Sidebar className="border-r border-sidebar-border">
@@ -75,7 +85,7 @@ export function AppSidebar() {
       <SidebarSeparator />
 
       <SidebarContent>
-        {navGroups.map((group) => (
+        {visibleNavGroups.map((group) => (
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel className="text-muted-foreground text-xs uppercase tracking-wider">
               {group.label}
