@@ -522,6 +522,57 @@ export type Database = {
           },
         ]
       }
+      trigger_audit: {
+        Row: {
+          created_at: string
+          data: Json
+          error_details: string | null
+          error_message: string | null
+          event_type: string
+          function_name: string
+          id: string
+          lead_id: string | null
+          status_after: string | null
+          status_before: string | null
+          success: boolean
+          table_name: string
+          trigger_name: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          error_details?: string | null
+          error_message?: string | null
+          event_type: string
+          function_name: string
+          id?: string
+          lead_id?: string | null
+          status_after?: string | null
+          status_before?: string | null
+          success?: boolean
+          table_name?: string
+          trigger_name: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          error_details?: string | null
+          error_message?: string | null
+          event_type?: string
+          function_name?: string
+          id?: string
+          lead_id?: string | null
+          status_after?: string | null
+          status_before?: string | null
+          success?: boolean
+          table_name?: string
+          trigger_name?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -620,6 +671,23 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_gestor: { Args: { _user_id: string }; Returns: boolean }
+      record_trigger_audit: {
+        Args: {
+          _data?: Json
+          _error_details?: string
+          _error_message?: string
+          _event_type: string
+          _function_name: string
+          _lead_id: string
+          _status_after: string
+          _status_before: string
+          _success: boolean
+          _table_name: string
+          _trigger_name: string
+          _user_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "gestor" | "suporte" | "desenvolvedor" | "vendas"
