@@ -1,143 +1,137 @@
-## Diagnóstico geral do sistema
 
-Antes do plano de execução, o resumo honesto da minha análise como Dev Sênior:
+## Problema atual
 
-### Pontos fortes
-- **Arquitetura sólida**: roles bem separados (`user_roles` + `has_role` SECURITY DEFINER), edge functions enxutas, Lovable Cloud bem aproveitado.
-- **Identidade visual forte**: o tema neon-futurista com `glass-panel`/`neon-border` e suporte a light/dark é coeso.
-- **Domínio bem modelado**: o ciclo Lead → Cliente → Mensalidades → Comissões → Metas faz sentido e está bem amarrado.
-- **Funcionalidades avançadas já entregues**: contratos DOCX→PDF via Browserless, calendário de visitas com feriados BR, super meta com bônus, divisão de contratos 50/50.
+Hoje os temas só trocam variáveis HSL no `:root`. As classes utilitárias (`.neon-glow`, `.neon-border`, `.glass-panel`, `.gradient-accent`) e várias páginas usam o **mesmo** layout neon como base, então apenas o Sunset (que tem overrides agressivos) muda de verdade. Componentes ainda têm valores fixos como `bg-card/60 backdrop-blur`, `bg-gradient-to-r from-yellow-400`, `neon-glow` direto no JSX, etc.
 
-### Pontos fracos (sem rodeio)
-1. **Inconsistência de data fetching**: só `Comissoes.tsx` usa react-query. As outras 9 páginas fazem `useState + useEffect + fetchX()` manual → re-fetches, sem cache, sem invalidação automática. Dashboard refaz 11 queries a cada 30s.
-2. **`Contratos.tsx` está obeso**: 1.205 linhas em um único arquivo, mistura listagem, upload, geração, histórico e diálogos. Difícil manter.
-3. **37 ocorrências de `as any`** espalhadas pelo código — denuncia campos que existem no banco mas não estão refletidos no `types.ts` em uso (na verdade estão, mas o código foi escrito sem eles inicialmente).
-4. **Topbar quebrada**: input de busca não tem handler, sino de notificações conta mas não abre dropdown.
-5. **Bug de meta/comissão**: filtra `fechado_ganho` por `updated_at` — se você editar qualquer coisa de um lead antigo, ele "renasce" no mês atual. Precisa de uma coluna `won_at` selada por trigger.
-6. **Criar membro vai quebrar**: o fluxo de Membros usa `supabase.auth.signUp()`, mas signups foram desabilitados na última etapa. Hoje só admin via service_role consegue criar.
-7. **`src/pages/Projetos.tsx`** ainda existe (74 linhas) sem rota — código morto. Você pediu para não mexer agora; fica anotado.
-8. **RLS de SELECT permissivo**: leads/clientes/tarefas/comissões hoje são `USING (true)` — qualquer membro vê tudo. Você não priorizou agora; fica registrado como dívida.
-9. **Mobile**: vários `grid-cols-2` ficam apertados < 360px; sidebar não tem agrupamento de seções.
+## Estratégia
 
----
+Tratar cada tema como uma **skin completa**, não uma variação de cores. Para isso vou:
 
-## Escopo aprovado para esta etapa
+1. **Centralizar tudo em tokens por tema** (incluindo coisas que hoje são fixas: raio, sombras, blur, gradientes, fontes, peso de borda).
+2. **Reescrever as utilitárias** (`.neon-glow`, `.neon-border`, `.glass-panel`, `.gradient-accent`, `.chip-*`) para apenas **consumir tokens** — sem `if [data-theme=...]` espalhado.
+3. **Limpar valores fixos no JSX** das páginas/sidebars/topbar e trocar por classes/utilitárias que respondem ao tema.
+4. Redesenhar 5 identidades distintas.
 
-### 1. Bugs funcionais (4 itens)
+## Identidades visuais (o "DNA" de cada tema)
 
-**1.1 — `won_at` para corrigir Dashboard, Metas e Comissões**
-- Migration: adicionar `leads.won_at TIMESTAMPTZ` (nullable).
-- Trigger `set_won_at`: quando `status` muda **para** `fechado_ganho`, grava `won_at = now()`. Quando muda **para fora**, zera `won_at = NULL` (evita inflar histórico se voltar atrás).
-- Backfill: `UPDATE leads SET won_at = updated_at WHERE status = 'fechado_ganho'` (uma vez, sem fragilizar dados existentes).
-- Trocar em **`Dashboard.tsx`**, **`Metas.tsx`** (`fetchData` + `fetchHistory`) e **`Comissoes.tsx`** (`leadsGanhoByTecnico`) os filtros `updated_at` por `won_at`.
+### 1. Neon Dark (atual, refinado)
+- Atmosfera: cyberpunk / produto SaaS futurista.
+- Fundo: gradiente escuro azul-violeta + leve grain.
+- Superfícies: glass com blur 12px, borda ciano translúcida.
+- Tipografia: Inter, tracking levemente positivo em títulos.
+- Botões/headings: glow ciano + acento magenta.
+- Raio: 0.75rem. Sombra: glow neon.
 
-**1.2 — Topbar: busca global**
-- Implementar busca em **leads + clientes + tarefas (título)** com debounce de 250 ms.
-- Resultado em `Popover` ancorado no input, agrupado por tipo, máximo 5 por grupo, click navega para a página correspondente.
-- Sem nova rota, sem nova tabela.
+### 2. Light (Clean Professional) — **sem nenhum vestígio neon**
+- Atmosfera: Notion / Linear claro.
+- Fundo: branco off-white sólido (sem gradientes radiais, sem blur).
+- Superfícies: branco puro, borda 1px cinza, sombra sutil em camadas.
+- Tipografia: Inter, peso 500 em títulos, sem letter-spacing.
+- Botões: sólidos, hover com darken simples.
+- Sidebar: cinza claríssimo, ícones outline.
+- Raio: 0.5rem. Sombra: `0 1px 2px / 0 1px 3px`.
+- **Remover** glow, gradientes coloridos, glass, neon-border (vira borda sólida).
 
-**1.3 — Topbar: dropdown de notificações**
-- `Popover` no sino com lista das últimas 10 notificações.
-- Ações: marcar individual como lida, "marcar todas como lidas", clicar em uma com `link` navega.
-- Já existe realtime no count — reusar para a lista.
+### 3. Liquid Glass (Apple-inspired)
+- Atmosfera: iOS / visionOS.
+- Fundo: gradientes radiais pastéis (azul, lilás, ciano) com `background-attachment: fixed`.
+- Superfícies: vidro fosco intenso (`backdrop-filter: blur(24px) saturate(180%)`), borda branca translúcida, highlight interno.
+- Tipografia: SF Pro / -apple-system, tracking -0.015em, peso 600 em títulos.
+- Botões: gradiente azul→roxo, raio 14px, sombra colorida suave.
+- Inputs/cards arredondados generosos (1.1rem).
+- Sidebar também translúcida sobre o fundo pastel.
 
-**1.4 — Membros: criar/editar via edge function**
-- Estender `admin-update-user/index.ts` com `action: "create_user"` (ou criar `admin-create-user` se preferir separado) usando `supabase.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { nome } })`.
-- Substituir o `signUp` em `Membros.tsx > createMember` pela invocação dessa edge function.
-- Mantém compatibilidade com `disable_signup: true` no auth.
+### 4. Midnight Glass
+- Atmosfera: Linear dark + Apple.
+- Fundo: quase preto azulado com gradientes radiais discretos.
+- Superfícies: vidro escuro (blur 18px), borda branca 8% opacidade, highlight interno sutil.
+- Tipografia: SF Pro, peso 600, tracking levemente negativo.
+- Acento: azul elétrico + violeta.
+- Sem glow forte; usa profundidade por sombra escura + highlight.
 
-### 2. Refatoração de código (sem mudar comportamento visível)
+### 5. Sunset (manter como referência)
+- Já está bem; só vou garantir consistência (sidebar, topbar, inputs, chips usando os mesmos gradientes warm).
 
-**2.1 — Quebrar `Contratos.tsx` (1.205 → ~250 linhas no shell)**
-Estrutura nova em `src/components/contratos/`:
-- `TemplatesTab.tsx` — listagem + upload + delete de templates.
-- `GerarContratoTab.tsx` — seleção de template, formulário dinâmico (com lookup CNPJ), checkbox de seções condicionais, botão "Gerar PDF".
-- `HistoricoTab.tsx` — lista de `generated_contracts` com download/abrir PDF (usando `sign-url` action).
-- `useContratos.ts` (hook) — encapsula queries/mutations de templates e contratos gerados.
-- `Contratos.tsx` vira só o shell com `Tabs` + título.
+## Arquitetura técnica
 
-Sem mexer em `process-contract/index.ts` nesta etapa (já está estável).
+### Novos tokens (por tema, em `index.css`)
 
-**2.2 — Padronizar data fetching com react-query**
-Migrar Dashboard, Leads, Clientes, Metas, Tarefas, Visitas, Membros, Relatórios para `useQuery` com keys consistentes (`["leads"]`, `["clients"]`, `["metas", mes, ano]`, etc).
-- Benefícios imediatos: cache automático, invalidação após mutation (`queryClient.invalidateQueries`), loading states padronizados, menos re-renders.
-- Dashboard: trocar `setInterval(30s)` por `refetchInterval: 30_000` nas queries → mata o efeito custoso de re-render manual.
+Além dos tokens HSL atuais, adicionar:
 
-**2.3 — Limpeza de `as any`**
-Após o react-query, criar tipos derivados de `Tables<"leads">`, `Tables<"clients">` etc. e eliminar pelo menos 80% dos `as any` (campos como `endereco`, `equipamento`, `responsible_id` já existem no `types.ts` gerado).
+```
+--radius
+--font-sans
+--tracking-tight
+--shadow-card
+--shadow-elev
+--shadow-glow              /* só neon/midnight usam — outros = none */
+--surface-blur             /* px ou 0 */
+--surface-bg               /* cor/gradiente do card */
+--surface-border           /* cor da borda do card */
+--surface-highlight        /* inset highlight ou none */
+--gradient-primary         /* gradiente do botão primário */
+--gradient-accent-text     /* gradiente para títulos destacados */
+--bg-page                  /* gradiente/fundo do body */
+--input-bg
+--input-border
+```
 
-### 3. UX / Visual
+Cada tema define **todos** esses tokens. Light define `--surface-blur: 0`, `--shadow-glow: none`, `--gradient-accent-text: none` → automaticamente sem neon.
 
-**3.1 — Sidebar com agrupamento**
-Agrupar `navItems` em duas seções:
-- **Operação**: Dashboard, Leads, Clientes, Tarefas, Visitas
-- **Gestão**: Metas, Comissões, Contratos, Membros, Relatórios
+### Reescrever utilitárias para consumir tokens
 
-Usa o `SidebarGroupLabel` que já está importado mas só mostra "Menu" hoje.
+```css
+.glass-panel {
+  background: var(--surface-bg);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(var(--surface-blur));
+  border-radius: var(--radius);
+}
+.neon-border { border: 1px solid var(--surface-border); box-shadow: var(--shadow-glow); }
+.neon-glow   { background: var(--gradient-accent-text); -webkit-background-clip: text; color: transparent; }
+                /* fallback p/ temas sem gradiente: color: hsl(var(--foreground)) */
+.gradient-accent { background: var(--gradient-primary); color: var(--primary-foreground); }
+```
 
-**3.2 — Mobile**
-- Topbar: esconder o input de busca em `< sm` e expor um ícone de lupa que abre `Sheet` com a busca.
-- `Dashboard` e `Leads`: garantir `grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-4` (hoje pula direto de 1 para 2 em sm).
-- `Tarefas`: melhorar `TaskCard` em telas estreitas (botão "Feito" não corta mais o título).
+Resultado: zero `[data-theme=…]` espalhado nas utilitárias — comportamento muda automaticamente.
 
-**3.3 — Microajustes visuais**
-- Padronizar `Card` com altura mínima por linha em grids para não "pular" quando há descrição vazia.
-- Adicionar feedback de loading (Skeletons) onde hoje aparece tela em branco durante o primeiro fetch.
-- Topbar: badge da contagem de notificações com animação `pulse` quando > 0 e for nova.
+### Body + tipografia globais
+`body { font-family: var(--font-sans); letter-spacing: var(--tracking-tight); background: var(--bg-page); }`
 
-### 4. Performance
+### Inputs/Buttons base (em `index.css`)
+Forçar `input, textarea, [role=combobox] { background: var(--input-bg); border-color: var(--input-border); border-radius: var(--radius); }` para todos os temas, eliminando overrides por tema.
 
-- **Dashboard**: além do `refetchInterval`, consolidar as 11 queries em 1 RPC `dashboard_stats(_user_id)` — função SQL retornando JSON com todos os contadores. Reduz round-trips de 11 → 1.
-- **Comissões**: já usa react-query, mas sem `staleTime` → adicionar `staleTime: 60_000` para evitar refetch a cada toggle de filtro.
-- **Leads/Clientes**: paginação com cursor (20 por página) — hoje carrega tudo. Com 25 leads não dói, mas escalando vai.
-- **Realtime opt-in**: ativar `postgres_changes` em `tasks` e `leads` para refletir alterações de outros usuários sem F5 (Topbar já faz isso para `notifications`).
+### Limpeza no JSX
+- `src/components/Topbar.tsx`: trocar `bg-card/50 backdrop-blur-sm` por classe `topbar` consumindo tokens.
+- `src/components/AppSidebar.tsx`: remover `neon-glow` no logo em temas claros (a utilitária já cuida), trocar `gradient-accent` se necessário (já consome token).
+- `src/pages/Dashboard.tsx`:
+  - `bg-card/60 backdrop-blur` → `glass-panel` (já consome token).
+  - `bg-gradient-to-r from-yellow-400/70 via-orange-400/70 to-red-400/70` → usar tokens semânticos (`--warning-gradient`) por tema.
+  - `neon-glow` em `<h1>` continua, mas agora a utilitária se adapta (gradient text no Sunset/Glass, cor sólida no Light, glow no Neon).
+- Auditar `rg "from-|to-|backdrop|bg-card/"` em `src/pages` e `src/components` e converter para utilitárias/tokens.
 
----
+### Sidebar com identidade própria por tema
+Já temos `--sidebar-*`. Vou adicionar `--sidebar-bg` (pode ser gradiente) e aplicar no componente Sidebar via classe `app-sidebar { background: var(--sidebar-bg); }`.
 
-## Arquivos afetados
+## Entregáveis
 
-| Camada | Arquivos |
-|---|---|
-| **Migrations** | 1 nova: `add_won_at_to_leads.sql` (coluna + trigger + backfill) + 1 opcional: `dashboard_stats_rpc.sql` |
-| **Edge functions** | `admin-update-user/index.ts` (novo action `create_user`) |
-| **Páginas refatoradas** | `Dashboard.tsx`, `Leads.tsx`, `Clientes.tsx`, `Metas.tsx`, `Tarefas.tsx`, `Visitas.tsx`, `Membros.tsx`, `Relatorios.tsx`, `Contratos.tsx` (shell) |
-| **Componentes novos** | `src/components/contratos/{TemplatesTab,GerarContratoTab,HistoricoTab}.tsx`, `src/hooks/useContratos.ts`, `src/components/topbar/{GlobalSearch,NotificationsDropdown}.tsx` |
-| **Componentes editados** | `Topbar.tsx`, `AppSidebar.tsx` |
+1. `src/index.css` reescrito:
+   - Bloco de tokens estendidos por tema (5 temas).
+   - Utilitárias reescritas consumindo tokens (sem `[data-theme]` interno).
+   - Estilos base de `input/button/sidebar/topbar` via tokens.
+2. `src/components/Topbar.tsx`: substituir classes fixas por utilitária `topbar-surface`.
+3. `src/components/AppSidebar.tsx`: substituir hardcodes por classe `app-sidebar-surface`.
+4. `src/pages/Dashboard.tsx`: remover `bg-card/60 backdrop-blur`, gradientes hardcoded, e padronizar com utilitárias.
+5. Varredura nas demais páginas (`Leads`, `Clientes`, `Tarefas`, `Visitas`, `Metas`, `Comissoes`, `Relatorios`, `Auditoria`, `Membros`, `Contratos`) substituindo `from-*/to-*/backdrop-*/bg-card\/\d+` por utilitárias temáticas. Sem mudar lógica.
+6. QA visual: trocar entre os 5 temas e validar Dashboard, Sidebar, Topbar, um formulário (Leads) e uma tabela (Tarefas).
 
-## Não será alterado
-- `process-contract/index.ts` (geração PDF está OK)
-- `cnpj-lookup/index.ts`
-- Sistema de roles e RLS (fica para a próxima etapa)
-- `src/pages/Projetos.tsx` (você pediu para não mexer)
-- Telas de Login / ResetPassword (acabaram de ser ajustadas)
-- Visual geral (neon, glass, gradientes — preserva 100%)
+## Sugestões / pontos a confirmar
 
----
+1. **Quantidade de temas**: 5 já é bastante. Sugiro **consolidar** removendo `Liquid Glass` **ou** `Midnight Glass` (são primos próximos — um claro e um escuro do mesmo conceito glass). Mantenho ambos se preferir.
+2. **Tipografia premium**: para Liquid/Midnight Glass posso carregar **Inter Display** via Google Fonts (peso variável) — fica mais perto do SF Pro em quem não está em macOS. Confirma se posso adicionar a fonte.
+3. **Acessibilidade**: o tema Sunset atual tem contraste apertado em texto secundário. Vou subir `--muted-foreground` para passar WCAG AA. OK?
+4. **Persistência por usuário**: hoje o tema fica em `localStorage`. Posso salvar no perfil (Supabase) para sincronizar entre dispositivos. Quer incluir agora?
+5. **Modo "auto"**: adicionar opção que segue `prefers-color-scheme` (Light de dia / Neon Dark à noite)?
 
-## Sugestões para uma próxima etapa (não incluídas agora)
-
-Para você ter visibilidade do que ficou no backlog do meu radar:
-
-1. **Hardening de RLS de SELECT** em leads/clientes/tarefas/comissões — vendedor só vê os próprios; admin/gestor vê tudo. Hoje qualquer pessoa logada vê tudo.
-2. **Remover/consolidar `Projetos`** (página + tabela) ou reativar com propósito claro.
-3. **Auditoria** — popular a tabela `activities` (já existe) com triggers em insert/update/delete dos principais recursos, e criar uma página de timeline.
-4. **Notificações automáticas** — toda vez que um lead muda de status ou tarefa é atribuída, gerar `notification` para o responsável.
-5. **Exportar contratos gerados em massa** (zip) e relatório de comissões em PDF assinável.
-6. **Onboarding de novo membro** — fluxo guiado em vez de só criar conta no painel.
-7. **Multi-empresa / white-label** se houver intenção de revender o CRM.
-
----
-
-### Resumo da execução
-
-Quando aprovar, eu executo nesta ordem para garantir estabilidade incremental:
-
-1. **Migration `won_at`** + ajuste em Dashboard/Metas/Comissões (corrige o bug que você já viu).
-2. **Edge function de criar membro** + ajuste em `Membros.tsx`.
-3. **Topbar**: busca global e dropdown de notificações.
-4. **Refatoração de Contratos** em componentes.
-5. **Padronização react-query** página por página (Dashboard primeiro, depois as demais).
-6. **UX**: agrupamento da sidebar + ajustes mobile + skeletons.
-7. **Perf**: RPC `dashboard_stats` + realtime em tasks/leads.
-
-Cada passo é commitável de forma independente. Aprovar?
+Posso seguir já com a refatoração assumindo: manter os 5 temas, adicionar Inter Display, corrigir contraste do Sunset, **sem** persistência em DB e **sem** modo auto — se você não responder essas perguntas. Caso queira diferente, me avise antes de eu começar.

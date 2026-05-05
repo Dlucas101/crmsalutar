@@ -221,7 +221,7 @@ export default function Dashboard() {
         </div>
 
         {/* Filtro de datas */}
-        <div className="inline-flex items-center gap-1 p-1 rounded-lg border border-border/60 bg-card/60 backdrop-blur self-start lg:self-auto overflow-x-auto">
+        <div className="surface-soft inline-flex items-center gap-1 p-1 self-start lg:self-auto overflow-x-auto">
           {PRESETS.map((p) => (
             <button
               key={p.value}
@@ -298,7 +298,7 @@ export default function Dashboard() {
         >
           <div
             className={`absolute inset-x-0 top-0 h-0.5 ${
-              meta.atingida ? "bg-green-400/70" : "bg-gradient-to-r from-yellow-400/70 via-orange-400/70 to-red-400/70"
+              meta.atingida ? "bar-success" : "bar-warning"
             }`}
           />
           <CardHeader className="pb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
