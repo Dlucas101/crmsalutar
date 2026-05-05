@@ -17,24 +17,60 @@ export default function ResetPassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   useEffect(() => {
-    // O Supabase processa o token do hash da URL automaticamente e dispara
-    // o evento PASSWORD_RECOVERY. Aguardamos esse sinal antes de liberar o form.
+    let cancelled = false;
+
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY") {
+      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
         setHasRecoverySession(true);
         setChecking(false);
       }
     });
 
-    // Fallback: se já houver uma sessão (link válido) consideramos pronto.
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) {
-        setHasRecoverySession(true);
-      }
-      setChecking(false);
-    });
+    (async () => {
+      try {
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get("code");
+        const errorDesc = url.searchParams.get("error_description") || url.hash.includes("error");
 
-    return () => sub.subscription.unsubscribe();
+        // Fluxo PKCE: troca o ?code= por uma sessão válida
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (!cancelled) {
+            if (error) {
+              setHasRecoverySession(false);
+            } else {
+              setHasRecoverySession(true);
+            }
+            // limpa a URL
+            window.history.replaceState({}, "", "/reset-password");
+            setChecking(false);
+            return;
+          }
+        }
+
+        if (errorDesc) {
+          if (!cancelled) {
+            setHasRecoverySession(false);
+            setChecking(false);
+          }
+          return;
+        }
+
+        // Fluxo legado (token no hash) ou usuário já com sessão
+        const { data } = await supabase.auth.getSession();
+        if (!cancelled) {
+          if (data.session) setHasRecoverySession(true);
+          setChecking(false);
+        }
+      } catch {
+        if (!cancelled) setChecking(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
