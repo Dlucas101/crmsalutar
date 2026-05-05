@@ -17,7 +17,7 @@ export function Topbar() {
   const { theme, setTheme } = useTheme();
 
   return (
-    <header className="h-14 border-b border-border flex items-center gap-4 px-4 bg-card/50 backdrop-blur-sm">
+    <header className="h-14 border-b flex items-center gap-4 px-4">
       <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
 
       <GlobalSearch />
