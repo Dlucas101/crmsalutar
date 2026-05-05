@@ -261,6 +261,124 @@
   }
 }
 
+/* ============ Per-theme component personality ============ */
+@layer base {
+  /* ---------- LIGHT (clean / flat / professional) ---------- */
+  :root:not(.dark) {
+    --radius: 0.5rem;
+    --shadow-card: 0 1px 2px hsl(220 40% 10% / 0.04), 0 1px 3px hsl(220 40% 10% / 0.06);
+    --shadow-elev: 0 4px 12px hsl(220 40% 10% / 0.08);
+  }
+  :root:not(.dark) body {
+    font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    letter-spacing: 0;
+  }
+  :root:not(.dark) [class*="bg-card"],
+  :root:not(.dark) .glass-panel {
+    box-shadow: var(--shadow-card);
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* ---------- DARK (neon — original identity) ---------- */
+  .dark:not([data-theme="midnight-glass"]):not([data-theme="sunset"]) {
+    --radius: 0.75rem;
+  }
+
+  /* ---------- LIQUID GLASS (Apple-like, very rounded, soft) ---------- */
+  [data-theme="liquid-glass"] {
+    --radius: 1.1rem;
+    --shadow-card: 0 8px 32px hsl(220 40% 30% / 0.08), inset 0 1px 0 hsl(0 0% 100% / 0.7);
+    --shadow-elev: 0 20px 60px hsl(220 40% 30% / 0.12);
+  }
+  [data-theme="liquid-glass"] body {
+    font-family: -apple-system, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+    letter-spacing: -0.01em;
+  }
+  [data-theme="liquid-glass"] button,
+  [data-theme="liquid-glass"] input,
+  [data-theme="liquid-glass"] textarea,
+  [data-theme="liquid-glass"] select,
+  [data-theme="liquid-glass"] [role="combobox"] {
+    border-radius: 0.85rem !important;
+  }
+  [data-theme="liquid-glass"] input,
+  [data-theme="liquid-glass"] textarea,
+  [data-theme="liquid-glass"] [role="combobox"] {
+    background: hsl(0 0% 100% / 0.65) !important;
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    border: 1px solid hsl(220 30% 80% / 0.5) !important;
+  }
+  [data-theme="liquid-glass"] .gradient-accent,
+  [data-theme="liquid-glass"] button[class*="bg-primary"] {
+    background: linear-gradient(135deg, hsl(210 95% 60%), hsl(260 85% 65%)) !important;
+    color: white !important;
+    box-shadow: 0 6px 18px hsl(210 90% 55% / 0.35);
+  }
+
+  /* ---------- MIDNIGHT GLASS (deep, refined, blurred) ---------- */
+  [data-theme="midnight-glass"] {
+    --radius: 1rem;
+    --shadow-card: 0 8px 32px hsl(230 60% 2% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.06);
+    --shadow-elev: 0 20px 60px hsl(230 60% 2% / 0.5);
+  }
+  [data-theme="midnight-glass"] body {
+    font-family: -apple-system, "SF Pro Display", "Inter", system-ui, sans-serif;
+    letter-spacing: -0.005em;
+  }
+  [data-theme="midnight-glass"] button,
+  [data-theme="midnight-glass"] input,
+  [data-theme="midnight-glass"] textarea,
+  [data-theme="midnight-glass"] [role="combobox"] {
+    border-radius: 0.85rem !important;
+  }
+  [data-theme="midnight-glass"] input,
+  [data-theme="midnight-glass"] textarea,
+  [data-theme="midnight-glass"] [role="combobox"] {
+    background: hsl(230 30% 12% / 0.55) !important;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid hsl(0 0% 100% / 0.1) !important;
+  }
+  [data-theme="midnight-glass"] .gradient-accent,
+  [data-theme="midnight-glass"] button[class*="bg-primary"] {
+    background: linear-gradient(135deg, hsl(210 100% 60%), hsl(280 80% 60%)) !important;
+    color: white !important;
+    box-shadow: 0 6px 24px hsl(210 100% 50% / 0.35);
+  }
+
+  /* ---------- SUNSET (warm, vibrant, gradient-driven) ---------- */
+  [data-theme="sunset"] {
+    --radius: 0.9rem;
+    --shadow-card: 0 6px 22px hsl(330 80% 10% / 0.35);
+    --shadow-elev: 0 20px 50px hsl(330 80% 10% / 0.45);
+  }
+  [data-theme="sunset"] body {
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    letter-spacing: 0;
+  }
+  [data-theme="sunset"] [class*="bg-card"],
+  [data-theme="sunset"] .glass-panel {
+    background: linear-gradient(160deg, hsl(285 25% 13%), hsl(290 30% 10%)) !important;
+    border: 1px solid hsl(285 30% 22%) !important;
+    box-shadow: var(--shadow-card);
+    backdrop-filter: none !important;
+  }
+  [data-theme="sunset"] input,
+  [data-theme="sunset"] textarea,
+  [data-theme="sunset"] [role="combobox"] {
+    background: hsl(285 25% 14%) !important;
+    border: 1px solid hsl(285 25% 25%) !important;
+  }
+  [data-theme="sunset"] .gradient-accent,
+  [data-theme="sunset"] button[class*="bg-primary"] {
+    background: linear-gradient(135deg, hsl(25 95% 58%), hsl(330 90% 60%)) !important;
+    color: white !important;
+    box-shadow: 0 8px 24px hsl(25 95% 50% / 0.4);
+  }
+}
+
 /* ============ Themed scrollbar (all themes) ============ */
 @layer base {
   /* Firefox */
@@ -299,58 +417,80 @@
 
 @layer utilities {
   .neon-glow {
+    text-shadow: none;
+  }
+  .dark:not([data-theme="midnight-glass"]):not([data-theme="sunset"]) .neon-glow {
     text-shadow: 0 0 12px hsl(var(--neon-cyan) / 0.3), 0 0 24px hsl(var(--neon-purple) / 0.15);
   }
-
-  /* Light mode: subtle shadow instead of neon */
-  :root .neon-glow {
-    text-shadow: none;
+  [data-theme="midnight-glass"] .neon-glow {
+    text-shadow: 0 0 18px hsl(210 100% 65% / 0.25);
+  }
+  [data-theme="sunset"] .neon-glow {
+    background: linear-gradient(90deg, hsl(25 100% 65%), hsl(330 95% 70%));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 
   .neon-border {
     border: 1px solid hsl(var(--border));
     box-shadow: 0 1px 3px hsl(var(--foreground) / 0.04);
   }
-
-  .dark .neon-border {
+  .dark:not([data-theme="midnight-glass"]):not([data-theme="sunset"]) .neon-border {
     border: 1px solid hsl(var(--neon-cyan) / 0.15);
     box-shadow: 0 0 20px hsl(var(--neon-cyan) / 0.05), inset 0 0 20px hsl(var(--neon-cyan) / 0.02);
+  }
+  [data-theme="midnight-glass"] .neon-border {
+    border: 1px solid hsl(210 100% 65% / 0.25);
+    box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.04);
+  }
+  [data-theme="sunset"] .neon-border {
+    border: 1px solid hsl(25 95% 60% / 0.35);
+    box-shadow: 0 0 16px hsl(25 95% 55% / 0.08);
   }
 
   .glass-panel {
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
   }
-
-  .dark .glass-panel {
+  .dark:not([data-theme="midnight-glass"]):not([data-theme="sunset"]) .glass-panel {
     background: linear-gradient(180deg, hsl(0 0% 100% / 0.03), hsl(0 0% 100% / 0.01));
     border: 1px solid hsl(0 0% 100% / 0.05);
     backdrop-filter: blur(12px);
   }
 
   .gradient-accent {
-    background: linear-gradient(135deg, hsl(var(--neon-cyan)), hsl(var(--neon-pink)));
-    color: white;
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    color: hsl(var(--primary-foreground));
   }
 
   .chip-urgente {
-    background: linear-gradient(90deg, hsl(var(--neon-pink)), hsl(335 80% 70%));
-    color: hsl(220 40% 6%);
+    background: hsl(var(--destructive));
+    color: hsl(var(--destructive-foreground));
   }
-
   .chip-alta {
-    background: linear-gradient(90deg, hsl(var(--neon-orange)), hsl(45 90% 65%));
+    background: hsl(var(--neon-orange) / 0.9);
     color: hsl(220 40% 6%);
   }
-
   .chip-media {
-    background: linear-gradient(90deg, hsl(var(--neon-cyan)), hsl(187 70% 70%));
-    color: hsl(220 40% 6%);
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
   }
-
   .chip-baixa {
     background: hsl(var(--muted));
     color: hsl(var(--muted-foreground));
+  }
+  .dark:not([data-theme="midnight-glass"]):not([data-theme="sunset"]) .chip-urgente {
+    background: linear-gradient(90deg, hsl(var(--neon-pink)), hsl(335 80% 70%));
+    color: hsl(220 40% 6%);
+  }
+  .dark:not([data-theme="midnight-glass"]):not([data-theme="sunset"]) .chip-alta {
+    background: linear-gradient(90deg, hsl(var(--neon-orange)), hsl(45 90% 65%));
+    color: hsl(220 40% 6%);
+  }
+  .dark:not([data-theme="midnight-glass"]):not([data-theme="sunset"]) .chip-media {
+    background: linear-gradient(90deg, hsl(var(--neon-cyan)), hsl(187 70% 70%));
+    color: hsl(220 40% 6%);
   }
 
   @keyframes float {
