@@ -417,58 +417,80 @@
 
 @layer utilities {
   .neon-glow {
+    text-shadow: none;
+  }
+  .dark:not([data-theme="midnight-glass"]):not([data-theme="sunset"]) .neon-glow {
     text-shadow: 0 0 12px hsl(var(--neon-cyan) / 0.3), 0 0 24px hsl(var(--neon-purple) / 0.15);
   }
-
-  /* Light mode: subtle shadow instead of neon */
-  :root .neon-glow {
-    text-shadow: none;
+  [data-theme="midnight-glass"] .neon-glow {
+    text-shadow: 0 0 18px hsl(210 100% 65% / 0.25);
+  }
+  [data-theme="sunset"] .neon-glow {
+    background: linear-gradient(90deg, hsl(25 100% 65%), hsl(330 95% 70%));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 
   .neon-border {
     border: 1px solid hsl(var(--border));
     box-shadow: 0 1px 3px hsl(var(--foreground) / 0.04);
   }
-
-  .dark .neon-border {
+  .dark:not([data-theme="midnight-glass"]):not([data-theme="sunset"]) .neon-border {
     border: 1px solid hsl(var(--neon-cyan) / 0.15);
     box-shadow: 0 0 20px hsl(var(--neon-cyan) / 0.05), inset 0 0 20px hsl(var(--neon-cyan) / 0.02);
+  }
+  [data-theme="midnight-glass"] .neon-border {
+    border: 1px solid hsl(210 100% 65% / 0.25);
+    box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.04);
+  }
+  [data-theme="sunset"] .neon-border {
+    border: 1px solid hsl(25 95% 60% / 0.35);
+    box-shadow: 0 0 16px hsl(25 95% 55% / 0.08);
   }
 
   .glass-panel {
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
   }
-
-  .dark .glass-panel {
+  .dark:not([data-theme="midnight-glass"]):not([data-theme="sunset"]) .glass-panel {
     background: linear-gradient(180deg, hsl(0 0% 100% / 0.03), hsl(0 0% 100% / 0.01));
     border: 1px solid hsl(0 0% 100% / 0.05);
     backdrop-filter: blur(12px);
   }
 
   .gradient-accent {
-    background: linear-gradient(135deg, hsl(var(--neon-cyan)), hsl(var(--neon-pink)));
-    color: white;
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    color: hsl(var(--primary-foreground));
   }
 
   .chip-urgente {
-    background: linear-gradient(90deg, hsl(var(--neon-pink)), hsl(335 80% 70%));
-    color: hsl(220 40% 6%);
+    background: hsl(var(--destructive));
+    color: hsl(var(--destructive-foreground));
   }
-
   .chip-alta {
-    background: linear-gradient(90deg, hsl(var(--neon-orange)), hsl(45 90% 65%));
+    background: hsl(var(--neon-orange) / 0.9);
     color: hsl(220 40% 6%);
   }
-
   .chip-media {
-    background: linear-gradient(90deg, hsl(var(--neon-cyan)), hsl(187 70% 70%));
-    color: hsl(220 40% 6%);
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
   }
-
   .chip-baixa {
     background: hsl(var(--muted));
     color: hsl(var(--muted-foreground));
+  }
+  .dark:not([data-theme="midnight-glass"]):not([data-theme="sunset"]) .chip-urgente {
+    background: linear-gradient(90deg, hsl(var(--neon-pink)), hsl(335 80% 70%));
+    color: hsl(220 40% 6%);
+  }
+  .dark:not([data-theme="midnight-glass"]):not([data-theme="sunset"]) .chip-alta {
+    background: linear-gradient(90deg, hsl(var(--neon-orange)), hsl(45 90% 65%));
+    color: hsl(220 40% 6%);
+  }
+  .dark:not([data-theme="midnight-glass"]):not([data-theme="sunset"]) .chip-media {
+    background: linear-gradient(90deg, hsl(var(--neon-cyan)), hsl(187 70% 70%));
+    color: hsl(220 40% 6%);
   }
 
   @keyframes float {
