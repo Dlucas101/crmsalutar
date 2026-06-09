@@ -64,7 +64,7 @@ async function fetchDashboardStats(preset: DateRangePreset) {
     supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "perdido"),
     supabase.from("tasks").select("*", { count: "exact", head: true }).eq("status", "concluido"),
     supabase.from("visits").select("*", { count: "exact", head: true }).eq("status", "concluido"),
-    supabase.from("metas").select("quantidade_meta")
+    supabase.from("metas").select("id, quantidade_meta")
       .eq("mes", now.getMonth() + 1).eq("ano", now.getFullYear()).maybeSingle(),
     // Ganhos no intervalo selecionado — usa SEMPRE won_at
     supabase.from("leads").select("*", { count: "exact", head: true })
@@ -130,7 +130,17 @@ async function fetchDashboardStats(preset: DateRangePreset) {
       faturamentoRange,
       faturamentoPrev,
     },
-    meta: metaRes.data ? { quantidade_meta: metaRes.data.quantidade_meta || 0 } : null,
+    meta: await (async () => {
+      if (!metaRes.data?.id) return metaRes.data ? { quantidade_meta: metaRes.data.quantidade_meta || 0 } : null;
+      const { data: tiersData } = await supabase
+        .from("meta_tiers")
+        .select("quantidade_minima")
+        .eq("meta_id", metaRes.data.id)
+        .order("quantidade_minima", { ascending: true });
+      const baseTier = (tiersData || []).find((t: any) => t.quantidade_minima > 0) || (tiersData || [])[0];
+      const qtd = baseTier?.quantidade_minima ?? (metaRes.data.quantidade_meta || 0);
+      return { quantidade_meta: qtd };
+    })(),
     monthlySeries: months,
     activities: activitiesRes.data || [],
   };
@@ -185,12 +195,12 @@ export default function Dashboard() {
   const activities = data?.activities ?? [];
 
   // META — sempre baseada em won_at do mês corrente.
-  const meta = data?.meta
+  const meta = data?.meta && data.meta.quantidade_meta > 0
     ? (() => {
         const quantidadeMeta = data.meta.quantidade_meta;
         const fechadosMes = stats.leadsWonMonth;
         const faltam = Math.max(0, quantidadeMeta - fechadosMes);
-        const percentual = quantidadeMeta > 0 ? Math.min(100, (fechadosMes / quantidadeMeta) * 100) : 0;
+        const percentual = Math.min(100, (fechadosMes / quantidadeMeta) * 100);
         return { quantidadeMeta, fechadosMes, faltam, percentual, atingida: fechadosMes >= quantidadeMeta };
       })()
     : null;

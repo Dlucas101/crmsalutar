@@ -57,6 +57,7 @@ export default function Metas() {
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [meta, setMeta] = useState<Meta | null>(null);
+  const [tiers, setTiers] = useState<{ id: string; nome: string; quantidade_minima: number; valor_por_contrato: number; ordem: number }[]>([]);
   const [members, setMembers] = useState<Profile[]>([]);
   const [leadsGanhos, setLeadsGanhos] = useState<LeadGanho[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -69,6 +70,17 @@ export default function Metas() {
       .eq("ano", selectedYear)
       .maybeSingle();
     setMeta(metaData as Meta | null);
+
+    if (metaData?.id) {
+      const { data: tiersData } = await supabase
+        .from("meta_tiers")
+        .select("id, nome, quantidade_minima, valor_por_contrato, ordem")
+        .eq("meta_id", metaData.id)
+        .order("quantidade_minima", { ascending: true });
+      setTiers(tiersData || []);
+    } else {
+      setTiers([]);
+    }
 
     const { data: allMembers } = await supabase.from("profiles").select("id, nome, cor, participa_comissao");
     const participatingMembers = (allMembers || []).filter((m: any) => m.participa_comissao !== false);
@@ -90,6 +102,10 @@ export default function Metas() {
   const fetchHistory = async () => {
     const entries: HistoryEntry[] = [];
     const { data: allMetas } = await supabase.from("metas").select("*").order("ano", { ascending: true }).order("mes", { ascending: true });
+    const metaIds = (allMetas || []).map((m: any) => m.id);
+    const { data: allTiers } = metaIds.length
+      ? await supabase.from("meta_tiers").select("meta_id, quantidade_minima").in("meta_id", metaIds)
+      : { data: [] as any[] };
     const { data: allProfiles } = await supabase.from("profiles").select("id, participa_comissao");
     const participatingIds = new Set((allProfiles || []).filter((p: any) => p.participa_comissao !== false).map((p) => p.id));
     const { data: allLeads } = await supabase.from("leads").select("responsible_id, won_at, status").eq("status", "fechado_ganho");
@@ -99,7 +115,9 @@ export default function Metas() {
       const m = d.getMonth() + 1;
       const y = d.getFullYear();
       const metaForMonth = (allMetas || []).find((mt: any) => mt.mes === m && mt.ano === y);
-      const metaQtd = metaForMonth ? (metaForMonth as any).quantidade_meta : 0;
+      const monthTiers = metaForMonth ? (allTiers || []).filter((t: any) => t.meta_id === metaForMonth.id).sort((a: any, b: any) => a.quantidade_minima - b.quantidade_minima) : [];
+      const baseT = monthTiers.find((t: any) => t.quantidade_minima > 0) || monthTiers[0];
+      const metaQtd = baseT ? baseT.quantidade_minima : (metaForMonth ? (metaForMonth as any).quantidade_meta : 0);
 
       const startDate = new Date(y, m - 1, 1);
       const endDate = new Date(y, m, 0, 23, 59, 59);
@@ -124,15 +142,19 @@ export default function Metas() {
   useEffect(() => { fetchHistory(); }, []);
 
 
-  // Calculations
-  const metaQtd = meta?.quantidade_meta || 0;
-  const metaValor = meta?.valor_contrato || 0;
+  // Calculations — derivadas das faixas configuradas (tiers) com fallback para os campos legados
+  const sortedTiers = [...tiers].sort((a, b) => a.quantidade_minima - b.quantidade_minima);
+  const baseTier = sortedTiers.find((t) => t.quantidade_minima > 0) || sortedTiers[0];
+  const topTier = sortedTiers[sortedTiers.length - 1];
+  const metaQtd = baseTier?.quantidade_minima ?? (meta?.quantidade_meta || 0);
+  const metaValor = baseTier?.valor_por_contrato ?? (meta?.valor_contrato || 0);
   const totalFechados = leadsGanhos.length;
   const faltamFechar = Math.max(0, metaQtd - totalFechados);
   const progressPercent = metaQtd > 0 ? Math.min(100, (totalFechados / metaQtd) * 100) : 0;
 
-  // Super meta
-  const superMetaQtd = meta?.meta_bonus_quantidade || 0;
+  // Super meta = faixa mais alta (quando houver mais de uma faixa)
+  const superMetaQtd = topTier && topTier !== baseTier ? topTier.quantidade_minima : (meta?.meta_bonus_quantidade || 0);
+  const superMetaValor = topTier && topTier !== baseTier ? topTier.valor_por_contrato : Number(meta?.meta_bonus_valor || 0);
   const superMetaAtingida = superMetaQtd > 0 && totalFechados >= superMetaQtd;
   const superMetaProgress = superMetaQtd > 0 ? Math.min(100, (totalFechados / superMetaQtd) * 100) : 0;
 
