@@ -136,15 +136,19 @@ export default function Metas() {
   useEffect(() => { fetchHistory(); }, []);
 
 
-  // Calculations
-  const metaQtd = meta?.quantidade_meta || 0;
-  const metaValor = meta?.valor_contrato || 0;
+  // Calculations — derivadas das faixas configuradas (tiers) com fallback para os campos legados
+  const sortedTiers = [...tiers].sort((a, b) => a.quantidade_minima - b.quantidade_minima);
+  const baseTier = sortedTiers.find((t) => t.quantidade_minima > 0) || sortedTiers[0];
+  const topTier = sortedTiers[sortedTiers.length - 1];
+  const metaQtd = baseTier?.quantidade_minima ?? (meta?.quantidade_meta || 0);
+  const metaValor = baseTier?.valor_por_contrato ?? (meta?.valor_contrato || 0);
   const totalFechados = leadsGanhos.length;
   const faltamFechar = Math.max(0, metaQtd - totalFechados);
   const progressPercent = metaQtd > 0 ? Math.min(100, (totalFechados / metaQtd) * 100) : 0;
 
-  // Super meta
-  const superMetaQtd = meta?.meta_bonus_quantidade || 0;
+  // Super meta = faixa mais alta (quando houver mais de uma faixa)
+  const superMetaQtd = topTier && topTier !== baseTier ? topTier.quantidade_minima : (meta?.meta_bonus_quantidade || 0);
+  const superMetaValor = topTier && topTier !== baseTier ? topTier.valor_por_contrato : Number(meta?.meta_bonus_valor || 0);
   const superMetaAtingida = superMetaQtd > 0 && totalFechados >= superMetaQtd;
   const superMetaProgress = superMetaQtd > 0 ? Math.min(100, (totalFechados / superMetaQtd) * 100) : 0;
 
