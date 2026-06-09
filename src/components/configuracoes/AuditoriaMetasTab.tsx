@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -81,8 +81,8 @@ export function AuditoriaMetasTab() {
               {rows.map((r) => {
                 const isOpen = expanded.has(r.id);
                 return (
-                  <>
-                    <TableRow key={r.id} className="cursor-pointer" onClick={() => toggle(r.id)}>
+                  <Fragment key={r.id}>
+                    <TableRow className="cursor-pointer" onClick={() => toggle(r.id)}>
                       <TableCell>
                         <Button size="icon" variant="ghost" className="h-6 w-6">
                           {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -101,7 +101,7 @@ export function AuditoriaMetasTab() {
                       </TableCell>
                     </TableRow>
                     {isOpen && (
-                      <TableRow key={r.id + "-d"}>
+                      <TableRow>
                         <TableCell colSpan={6} className="bg-muted/30">
                           <div className="text-xs space-y-1">
                             {r.changes && Object.keys(r.changes).length > 0 ? (
@@ -128,7 +128,7 @@ export function AuditoriaMetasTab() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </TableBody>
