@@ -212,11 +212,9 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold neon-glow truncate">
-            Olá, {profile?.nome || "Usuário"}{" "}
-            <span className="inline-block" style={{ WebkitBackgroundClip: "initial", backgroundClip: "initial", color: "inherit", background: "none", textShadow: "none" }}>
-              👋
-            </span>
+          <h1 className="text-xl sm:text-2xl font-bold truncate flex items-baseline gap-2">
+            <span className="neon-glow truncate">Olá, {profile?.nome || "Usuário"}</span>
+            <span aria-hidden="true" className="shrink-0">👋</span>
           </h1>
           <p className="text-muted-foreground text-xs sm:text-sm mt-1">
             {role ? ROLE_LABELS[role] : ""} • Painel de controle • <span className="text-foreground/80">{periodLabel}</span>
