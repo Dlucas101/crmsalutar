@@ -64,7 +64,7 @@ async function fetchDashboardStats(preset: DateRangePreset) {
     supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "perdido"),
     supabase.from("tasks").select("*", { count: "exact", head: true }).eq("status", "concluido"),
     supabase.from("visits").select("*", { count: "exact", head: true }).eq("status", "concluido"),
-    supabase.from("metas").select("quantidade_meta")
+    supabase.from("metas").select("id, quantidade_meta")
       .eq("mes", now.getMonth() + 1).eq("ano", now.getFullYear()).maybeSingle(),
     // Ganhos no intervalo selecionado — usa SEMPRE won_at
     supabase.from("leads").select("*", { count: "exact", head: true })
