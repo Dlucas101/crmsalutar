@@ -1,96 +1,69 @@
-# Plano: Nova regra de Metas e Premiação
-
 ## Objetivo
 
-Trocar a lógica atual (bônus = quantidade de leads ganhos × valor fixo da meta, pago "de uma vez") por uma premiação **por contrato**, com **faixas configuráveis por mês** e **liberação parcelada em 3 vezes** atrelada ao pagamento das 3 primeiras mensalidades. A comissão atual `(valor da mensalidade − custo) / 2` continua existindo em paralelo (somando).
+Separar **configuração de regras** (faixas de premiação, fechamento de apuração) da **visualização de desempenho** do mês, criando um novo menu `/configuracoes` com abas. A página `/metas` passa a ser apenas leitura: mostra o progresso do mês, faixa atingida, ranking de técnicos e histórico.
 
-## Modelo de dados (novas tabelas)
+## Nova estrutura de menu
 
-### `meta_tiers` — faixas configuráveis por mês
-- `meta_id` (FK → `metas`)
-- `ordem` (1, 2, 3…) — ordem da menor para a maior
-- `nome` (ex.: "Base", "Meta", "Super Meta")
-- `quantidade_minima` (int) — nº de contratos do mês para atingir essa faixa
-- `valor_por_contrato` (numeric)
-- Único por (`meta_id`, `ordem`)
+Adicionar item **"Configurações"** no grupo "Gestão" do `AppSidebar` (visível apenas para admin/gestor), ícone `Settings`.
 
-Faixa "Base" = `quantidade_minima = 0`. Admin pode criar quantas faixas quiser.
+```
+Gestão
+├── Metas              ← vira somente visualização
+├── Comissões
+├── Contratos
+├── Membros
+├── Relatórios
+├── Configurações ⭐    ← novo, admin/gestor
+└── Auditoria (admin)
+```
 
-### `meta_apuracao` — fechamento do mês (snapshot)
-- `mes`, `ano` (único)
-- `fechada_em` (timestamp; null = aberta)
-- `faixa_atingida_id` (FK → `meta_tiers`)
-- `valor_por_contrato_congelado` (numeric)
-- `total_contratos` (int)
+## Página `/configuracoes` (nova)
 
-Enquanto `fechada_em IS NULL`, a faixa é recalculada em tempo real. Um job/edge function diária fecha automaticamente o mês anterior no dia 1 de cada mês (cron via `pg_cron` ou edge function agendada).
+Layout com abas (`Tabs` do shadcn). Estrutura preparada para crescer:
 
-### `premiacoes` — premiação por contrato
-- `client_id` (FK, único) — 1 premiação por contrato
-- `responsavel_id` (FK → profiles) — pode mudar em transferência
-- `mes_referencia`, `ano_referencia` — mês de fechamento do contrato (`won_at`)
-- `valor_total` (numeric) — vem da faixa congelada × 1 contrato
-- `status` ('ativa' | 'cancelada')
+| Aba | Conteúdo agora |
+|---|---|
+| **Metas & Premiação** | Seletor mês/ano + `MetaTiersEditor` (faixas, status apuração, botão fechar) |
+| **Comissão** | (placeholder) Configuração futura de custo da mensalidade, % técnico vs empresa |
+| **Automações** | (placeholder) Regras de criação de tarefas por status de lead |
+| **Geral** | (placeholder) Preferências do sistema |
 
-### `premiacao_parcelas` — 3 parcelas por premiação
-- `premiacao_id` (FK)
-- `numero` (1, 2, 3)
-- `valor` (numeric) — `valor_total / 3` por padrão, editável manualmente
-- `mensalidade_id` (FK → mensalidades, nullable) — vínculo com a mensalidade que liberou
-- `status` ('pendente' | 'liberada' | 'cancelada')
-- `liberada_em` (timestamp, nullable)
-- `responsavel_id` (FK → profiles) — herda do contrato no momento da liberação
-- `ajustada_manualmente` (boolean)
+Só a aba **Metas & Premiação** vem funcional nesta entrega. As outras ficam com um card "Em breve" para não criar páginas vazias.
 
-## Triggers e automações
+Proteção de rota: redireciona para `/` se o usuário não for admin/gestor.
 
-1. **Criação da premiação**: trigger em `clients` (após insert via `handle_lead_ganho` ou manual). Busca a faixa congelada do mês de `won_at` do lead; se o mês ainda está aberto, usa a faixa **provisoriamente** atingida e recalcula em cada mudança até o mês fechar.
-2. **Liberação de parcela**: trigger em `mensalidades` (after insert). Se `numero_mensalidade ∈ {1,2,3}`, marca a parcela correspondente como `liberada`, grava `mensalidade_id`, `liberada_em` e `responsavel_id` atual do contrato.
-3. **Cancelamento de contrato**: quando `clients.historico = true` (campo já existe) ou novo status de cancelamento → marca premiação como `cancelada` e cancela parcelas ainda `pendente`. Parcelas já `liberada` permanecem.
-4. **Transferência**: ao alterar `clients.responsavel_id`, parcelas `pendente` recebem o novo responsável; parcelas `liberada` ficam com quem recebeu.
-5. **Fechamento mensal** (edge function agendada, executa dia 1): para cada mês não-fechado anterior, calcula faixa atingida, grava `meta_apuracao` e atualiza `valor_total` de todas as premiações daquele mês para `faixa.valor_por_contrato`. Após fechado, valor não muda mais.
+## Página `/metas` (refatorada — somente visualização)
 
-## UI
+Remove da UI:
+- Editor de faixas (`MetaTiersEditor`) → migra para Configurações
+- Campos antigos `quantidade_meta`, `valor_contrato`, `meta_bonus_quantidade`, `meta_bonus_valor` (escondidos da tela; colunas permanecem no banco para retrocompatibilidade)
+- Botões de criar/editar meta crua
 
-### Página Metas (`src/pages/Metas.tsx`)
-- Editor de faixas: lista de linhas (ordem, nome, qtd mínima, valor por contrato) com adicionar/remover.
-- Indicador da faixa atual atingida no mês.
-- Botão "Fechar apuração agora" (admin) e badge "Apuração fechada em DD/MM".
-- Histórico mostra faixa final atingida por mês.
+Mantém / adiciona:
+- Seletor mês/ano
+- Card **"Faixa atual"**: nome da faixa atingida, valor/contrato, total de contratos no mês, badge "Aberta/Fechada"
+- Card **"Progresso"**: barra de progresso até a próxima faixa
+- **Ranking** dos técnicos: contratos ganhos no mês (já existe parte disso)
+- **Histórico** dos últimos meses com faixa final atingida
+- Link/atalho "Configurar faixas →" que leva para `/configuracoes?tab=metas-premiacao` (visível apenas para admin/gestor)
 
-### Página Comissões (`src/pages/Comissoes.tsx`)
-- Mantém o bloco atual de comissão `(valor − custo)`.
-- Novo bloco **"Premiação por contrato"** por técnico:
-  - Lista contratos do mês com: valor total da premiação, status das 3 parcelas, valores, mensalidade vinculada.
-  - Editor inline do valor de cada parcela (admin) — marca `ajustada_manualmente`.
-  - Totais separados: "Comissão", "Premiação liberada no mês", "Premiação pendente", "Total a receber no mês".
-- Filtro por status (liberada/pendente/cancelada).
+## Arquivos afetados
 
-## Migração de dados existentes
+**Criar:**
+- `src/pages/Configuracoes.tsx` — página com Tabs
+- `src/components/configuracoes/MetasPremiacaoTab.tsx` — wrapper que usa o `MetaTiersEditor` existente + seletor de mês
 
-Script único na migration:
-1. Para cada `meta` antiga, criar `meta_tiers`: "Meta" (`quantidade_meta`, `valor_contrato`) e, se houver, "Super Meta" (`meta_bonus_quantidade`, `meta_bonus_valor`).
-2. Para cada `client` com `lead.status = fechado_ganho`, criar `premiacao` + 3 `premiacao_parcelas` baseadas no `won_at` e na faixa do mês correspondente.
-3. Para cada `mensalidade` 1-3 já paga, marcar a parcela correspondente como `liberada`.
-4. Marcar como `fechada` todas as `meta_apuracao` de meses anteriores ao atual.
+**Editar:**
+- `src/App.tsx` — registrar rota `/configuracoes` com guard admin/gestor
+- `src/components/AppSidebar.tsx` — adicionar item "Configurações" para admin/gestor
+- `src/pages/Metas.tsx` — remover editor de faixas e campos legados da UI; deixar apenas visualização + link para Configurações
 
-Campos antigos (`metas.quantidade_meta`, `valor_contrato`, `meta_bonus_*`) ficam por compatibilidade e poderão ser removidos depois.
+**Sem mudanças de banco.** Nenhuma migration: os campos antigos continuam existindo, só somem da interface. `meta_tiers`, `meta_apuracao`, `premiacoes`, `premiacao_parcelas` permanecem como estão.
 
-## RLS (resumo)
+**Memória:** atualizar `mem://funcionalidades/metas` explicando que metas são visualização e que configuração de faixas vive em `/configuracoes`.
 
-- `meta_tiers`, `meta_apuracao`: leitura para `authenticated`, escrita só para `is_admin_or_gestor`.
-- `premiacoes`, `premiacao_parcelas`: admin/gestor vê tudo; técnico vê apenas onde `responsavel_id = auth.uid()`. Edição só admin/gestor.
-- GRANTs explícitos para `authenticated` e `service_role` em todas as tabelas novas.
+## Pontos técnicos
 
-## Entregáveis
-
-1. Migration: novas tabelas + triggers + funções + GRANTs + RLS + migração de dados.
-2. Edge function `close-monthly-apuracao` agendada (cron diário).
-3. `src/pages/Metas.tsx`: editor de faixas + fechamento.
-4. `src/pages/Comissoes.tsx`: novo bloco de premiação por contrato com edição de parcelas.
-5. Atualização de `mem://funcionalidades/metas` e `mem://funcionalidades/comissoes`.
-
-## Pontos em aberto (decidir durante a build se não responder agora)
-
-- **Cancelamento de contrato**: hoje só existe `clients.historico`. Posso usar esse flag como gatilho de cancelamento ou prefere um campo novo `status_contrato` ('ativo'|'cancelado')?
-- **Edge function agendada**: ok usar `pg_cron` da Lovable Cloud rodando uma SQL function diária às 00:05? (mais simples que edge function externa).
+- Guard de rota em `Configuracoes.tsx`: usa `useAuth()`; se `role !== 'admin' && role !== 'gestor'`, `<Navigate to="/" />`.
+- Tabs com estado controlado por query param (`?tab=metas-premiacao`) para permitir deep-link a partir do `/metas`.
+- Manter o `MetaTiersEditor` atual sem alterações de assinatura — só muda quem o renderiza.

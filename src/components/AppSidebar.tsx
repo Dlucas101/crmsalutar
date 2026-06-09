@@ -13,6 +13,7 @@ import {
   DollarSign,
   FileSignature,
   ShieldCheck,
+  Settings,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -63,10 +64,14 @@ const navGroups = [
 
 export function AppSidebar() {
   const { profile, role, signOut } = useAuth();
+  const isAdminOrGestor = role === "admin" || role === "gestor";
   const visibleNavGroups = navGroups.map((group) => ({
     ...group,
     items: [
       ...group.items,
+      ...(group.label === "Gestão" && isAdminOrGestor
+        ? [{ title: "Configurações", url: "/configuracoes", icon: Settings }]
+        : []),
       ...(group.label === "Gestão" && role === "admin"
         ? [{ title: "Auditoria", url: "/auditoria", icon: ShieldCheck }]
         : []),

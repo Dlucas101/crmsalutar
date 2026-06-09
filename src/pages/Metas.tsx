@@ -1,17 +1,13 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Trophy, Target, TrendingUp, Users, Settings, DollarSign, BarChart3 } from "lucide-react";
-import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { MetaTiersEditor } from "@/components/metas/MetaTiersEditor";
 
 interface Meta {
   id: string;
@@ -61,16 +57,9 @@ export default function Metas() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [members, setMembers] = useState<Profile[]>([]);
   const [leadsGanhos, setLeadsGanhos] = useState<LeadGanho[]>([]);
-  const [openConfig, setOpenConfig] = useState(false);
-  const [formQtd, setFormQtd] = useState("");
-  const [formValor, setFormValor] = useState("");
-  const [formBonusQtd, setFormBonusQtd] = useState("");
-  const [formBonusValor, setFormBonusValor] = useState("");
-  const [formBonusDesc, setFormBonusDesc] = useState("");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   const fetchData = async () => {
-    // Fetch meta for selected month
     const { data: metaData } = await supabase
       .from("metas")
       .select("*")
@@ -78,28 +67,12 @@ export default function Metas() {
       .eq("ano", selectedYear)
       .maybeSingle();
     setMeta(metaData as Meta | null);
-    if (metaData) {
-      const md = metaData as any;
-      setFormQtd(String(md.quantidade_meta));
-      setFormValor(String(md.valor_contrato));
-      setFormBonusQtd(md.meta_bonus_quantidade ? String(md.meta_bonus_quantidade) : "");
-      setFormBonusValor(md.meta_bonus_valor ? String(md.meta_bonus_valor) : "");
-      setFormBonusDesc(md.meta_bonus_descricao || "");
-    } else {
-      setFormQtd("");
-      setFormValor("");
-      setFormBonusQtd("");
-      setFormBonusValor("");
-      setFormBonusDesc("");
-    }
 
-    // Fetch members with participa_comissao = true
     const { data: allMembers } = await supabase.from("profiles").select("id, nome, cor, participa_comissao");
     const participatingMembers = (allMembers || []).filter((m: any) => m.participa_comissao !== false);
     setMembers(participatingMembers);
     const participatingIds = new Set(participatingMembers.map((m) => m.id));
 
-    // Fetch leads won in selected month/year (only from participating members)
     const startDate = new Date(selectedYear, selectedMonth - 1, 1).toISOString();
     const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59).toISOString();
     const { data: leads } = await supabase
@@ -113,21 +86,19 @@ export default function Metas() {
   };
 
   const fetchHistory = async () => {
-    // Fetch last 6 months of metas history
     const entries: HistoryEntry[] = [];
     const { data: allMetas } = await supabase.from("metas").select("*").order("ano", { ascending: true }).order("mes", { ascending: true });
     const { data: allProfiles } = await supabase.from("profiles").select("id, participa_comissao");
     const participatingIds = new Set((allProfiles || []).filter((p: any) => p.participa_comissao !== false).map((p) => p.id));
     const { data: allLeads } = await supabase.from("leads").select("responsible_id, won_at, status").eq("status", "fechado_ganho");
 
-    // Build last 6 months
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const m = d.getMonth() + 1;
       const y = d.getFullYear();
       const metaForMonth = (allMetas || []).find((mt: any) => mt.mes === m && mt.ano === y);
       const metaQtd = metaForMonth ? (metaForMonth as any).quantidade_meta : 0;
-      
+
       const startDate = new Date(y, m - 1, 1);
       const endDate = new Date(y, m, 0, 23, 59, 59);
       const fechados = (allLeads || []).filter((l: any) => {
@@ -150,40 +121,6 @@ export default function Metas() {
   useEffect(() => { fetchData(); }, [selectedMonth, selectedYear]);
   useEffect(() => { fetchHistory(); }, []);
 
-  const handleSaveMeta = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const qtd = parseInt(formQtd) || 0;
-    const valor = parseFloat(formValor) || 0;
-    if (qtd <= 0) { toast.error("Informe a quantidade da meta"); return; }
-
-    const bonusQtd = parseInt(formBonusQtd) || 0;
-    const bonusValor = parseFloat(formBonusValor) || 0;
-    const bonusDesc = formBonusDesc.trim() || null;
-
-    const payload = {
-      quantidade_meta: qtd,
-      valor_contrato: valor,
-      meta_bonus_quantidade: bonusQtd > 0 ? bonusQtd : 0,
-      meta_bonus_valor: bonusValor,
-      meta_bonus_descricao: bonusDesc,
-    };
-
-    if (meta) {
-      const { error } = await supabase.from("metas").update(payload).eq("id", meta.id);
-      if (error) { toast.error("Erro ao atualizar meta"); return; }
-    } else {
-      const { error } = await supabase.from("metas").insert({
-        mes: selectedMonth,
-        ano: selectedYear,
-        ...payload,
-      });
-      if (error) { toast.error("Erro ao criar meta"); return; }
-    }
-    toast.success("Meta salva!");
-    setOpenConfig(false);
-    fetchData();
-    fetchHistory();
-  };
 
   // Calculations
   const metaQtd = meta?.quantidade_meta || 0;
@@ -240,65 +177,16 @@ export default function Metas() {
             </SelectContent>
           </Select>
           {isAdmin && (
-            <Dialog open={openConfig} onOpenChange={setOpenConfig}>
-              <DialogTrigger asChild>
-                <Button variant="outline"><Settings className="h-4 w-4 mr-2" /> Configurar Meta</Button>
-              </DialogTrigger>
-              <DialogContent className="glass-panel border-border max-w-sm">
-                <DialogHeader>
-                  <DialogTitle className="neon-glow">Meta de {MONTHS[selectedMonth - 1]} {selectedYear}</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleSaveMeta} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Quantidade da Meta (contratos)</Label>
-                    <Input type="number" min="1" value={formQtd} onChange={(e) => setFormQtd(e.target.value)} placeholder="Ex: 8" className="bg-secondary/50" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Valor por Contrato (R$)</Label>
-                    <Input type="number" min="0" step="0.01" value={formValor} onChange={(e) => setFormValor(e.target.value)} placeholder="Ex: 150.00" className="bg-secondary/50" required />
-                  </div>
-
-                  <div className="border-t border-border pt-4 mt-4">
-                    <p className="text-sm font-semibold text-foreground mb-3">🎯 Super Meta (Bônus)</p>
-                    <div className="space-y-2">
-                      <Label>Quantidade para Super Meta (contratos)</Label>
-                      <Input type="number" min="0" value={formBonusQtd} onChange={(e) => setFormBonusQtd(e.target.value)} placeholder="Ex: 10 (deixe 0 para desativar)" className="bg-secondary/50" />
-                    </div>
-                    <div className="space-y-2 mt-2">
-                      <Label>Valor bônus por contrato (R$) — opcional</Label>
-                      <Input type="number" min="0" step="0.01" value={formBonusValor} onChange={(e) => setFormBonusValor(e.target.value)} placeholder="Ex: 50.00 (0 se não for valor)" className="bg-secondary/50" />
-                    </div>
-                    <div className="space-y-2 mt-2">
-                      <Label>Prêmio / Descrição — opcional</Label>
-                      <Input value={formBonusDesc} onChange={(e) => setFormBonusDesc(e.target.value)} placeholder="Ex: Jantar no restaurante X" className="bg-secondary/50" />
-                    </div>
-                  </div>
-
-                  <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">Salvar Meta</Button>
-                </form>
-              </DialogContent>
-            </Dialog>
+            <Button variant="outline" asChild>
+              <Link to="/configuracoes?tab=metas-premiacao">
+                <Settings className="h-4 w-4 mr-2" /> Configurar faixas
+              </Link>
+            </Button>
           )}
         </div>
       </div>
 
-      <MetaTiersEditor
-        metaId={meta?.id || null}
-        mes={selectedMonth}
-        ano={selectedYear}
-        isAdmin={isAdmin}
-        onCreateMeta={async () => {
-          const { data, error } = await supabase
-            .from("metas")
-            .insert({ mes: selectedMonth, ano: selectedYear, quantidade_meta: 0, valor_contrato: 0 })
-            .select("id")
-            .single();
-          if (error) { toast.error("Erro ao criar meta"); return null; }
-          await fetchData();
-          return data?.id ?? null;
-        }}
-        onChanged={() => { fetchData(); fetchHistory(); }}
-      />
+
 
 
 
