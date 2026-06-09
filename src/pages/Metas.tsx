@@ -386,6 +386,12 @@ export default function Metas() {
         </>
       )}
 
+      {/* Contratos & parcelas do mês */}
+      <ContratosPorFaixaBlock mes={selectedMonth} ano={selectedYear} />
+      <ParcelasMesBlock mes={selectedMonth} ano={selectedYear} />
+
+
+
       {/* Goals History Chart */}
       {history.length > 0 && (
         <Card className="glass-panel neon-border">
