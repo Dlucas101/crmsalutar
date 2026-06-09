@@ -1,69 +1,183 @@
-## Objetivo
+Ajustar o módulo de Metas e Premiações para melhorar visualização, auditoria, simulação e manutenção das regras atuais, sem alterar a lógica de negócio já implementada.
 
-Separar **configuração de regras** (faixas de premiação, fechamento de apuração) da **visualização de desempenho** do mês, criando um novo menu `/configuracoes` com abas. A página `/metas` passa a ser apenas leitura: mostra o progresso do mês, faixa atingida, ranking de técnicos e histórico.
+OBJETIVO
 
-## Nova estrutura de menu
+Melhorar a gestão e acompanhamento das metas mensais, das premiações por contrato e das parcelas vinculadas às mensalidades, mantendo a regra atual já funcional.
 
-Adicionar item **"Configurações"** no grupo "Gestão" do `AppSidebar` (visível apenas para admin/gestor), ícone `Settings`.
+IMPORTANTE
 
-```
-Gestão
-├── Metas              ← vira somente visualização
-├── Comissões
-├── Contratos
-├── Membros
-├── Relatórios
-├── Configurações ⭐    ← novo, admin/gestor
-└── Auditoria (admin)
-```
+- Não alterar a regra de cálculo existente.
+- Não alterar a estrutura de premiações já implementada.
+- Não alterar a forma de liberação das parcelas.
+- Não alterar a regra de contratos, mensalidades ou transferências.
+- Focar apenas em visualização, auditoria, simulação e manutenção administrativa.
 
-## Página `/configuracoes` (nova)
+──────────────────────────────
 
-Layout com abas (`Tabs` do shadcn). Estrutura preparada para crescer:
+1. MELHORIAS NA TELA /METAS  
+──────────────────────────────
 
-| Aba | Conteúdo agora |
-|---|---|
-| **Metas & Premiação** | Seletor mês/ano + `MetaTiersEditor` (faixas, status apuração, botão fechar) |
-| **Comissão** | (placeholder) Configuração futura de custo da mensalidade, % técnico vs empresa |
-| **Automações** | (placeholder) Regras de criação de tarefas por status de lead |
-| **Geral** | (placeholder) Preferências do sistema |
+Adicionar novos blocos de visualização para o mês selecionado.
 
-Só a aba **Metas & Premiação** vem funcional nesta entrega. As outras ficam com um card "Em breve" para não criar páginas vazias.
+Bloco: Contratos do Mês
 
-Proteção de rota: redireciona para `/` se o usuário não for admin/gestor.
+Exibir todos os contratos fechados no mês contendo:
 
-## Página `/metas` (refatorada — somente visualização)
+- Cliente
+- Vendedor responsável
+- Data do fechamento
+- Faixa vigente do mês
+- Valor unitário da premiação
+- Valor total da premiação
 
-Remove da UI:
-- Editor de faixas (`MetaTiersEditor`) → migra para Configurações
-- Campos antigos `quantidade_meta`, `valor_contrato`, `meta_bonus_quantidade`, `meta_bonus_valor` (escondidos da tela; colunas permanecem no banco para retrocompatibilidade)
-- Botões de criar/editar meta crua
+Importante:
 
-Mantém / adiciona:
-- Seletor mês/ano
-- Card **"Faixa atual"**: nome da faixa atingida, valor/contrato, total de contratos no mês, badge "Aberta/Fechada"
-- Card **"Progresso"**: barra de progresso até a próxima faixa
-- **Ranking** dos técnicos: contratos ganhos no mês (já existe parte disso)
-- **Histórico** dos últimos meses com faixa final atingida
-- Link/atalho "Configurar faixas →" que leva para `/configuracoes?tab=metas-premiacao` (visível apenas para admin/gestor)
+Não criar cálculo individual de faixa por contrato.
 
-## Arquivos afetados
+A faixa utilizada deve ser a faixa atualmente apurada para aquele mês.
 
-**Criar:**
-- `src/pages/Configuracoes.tsx` — página com Tabs
-- `src/components/configuracoes/MetasPremiacaoTab.tsx` — wrapper que usa o `MetaTiersEditor` existente + seletor de mês
+Objetivo:
 
-**Editar:**
-- `src/App.tsx` — registrar rota `/configuracoes` com guard admin/gestor
-- `src/components/AppSidebar.tsx` — adicionar item "Configurações" para admin/gestor
-- `src/pages/Metas.tsx` — remover editor de faixas e campos legados da UI; deixar apenas visualização + link para Configurações
+Permitir rastrear quais contratos estão participando da meta e da premiação daquele período.
 
-**Sem mudanças de banco.** Nenhuma migration: os campos antigos continuam existindo, só somem da interface. `meta_tiers`, `meta_apuracao`, `premiacoes`, `premiacao_parcelas` permanecem como estão.
+──────────────────────────────  
+2. PARCELAS DA PREMIAÇÃO  
+──────────────────────────────
 
-**Memória:** atualizar `mem://funcionalidades/metas` explicando que metas são visualização e que configuração de faixas vive em `/configuracoes`.
+Adicionar bloco de acompanhamento das parcelas.
 
-## Pontos técnicos
+Separar visualmente:
 
-- Guard de rota em `Configuracoes.tsx`: usa `useAuth()`; se `role !== 'admin' && role !== 'gestor'`, `<Navigate to="/" />`.
-- Tabs com estado controlado por query param (`?tab=metas-premiacao`) para permitir deep-link a partir do `/metas`.
-- Manter o `MetaTiersEditor` atual sem alterações de assinatura — só muda quem o renderiza.
+- Liberadas
+- Pendentes
+- Canceladas
+
+Exibir:
+
+- Cliente
+- Vendedor
+- Parcela (1, 2 ou 3)
+- Valor
+- Status
+- Data de liberação
+- Mensalidade vinculada
+
+Adicionar totais por categoria.
+
+Objetivo:
+
+Permitir acompanhamento financeiro das premiações.
+
+──────────────────────────────  
+3. AUDITORIA DE METAS E FAIXAS  
+──────────────────────────────
+
+Criar auditoria para alterações realizadas em:
+
+- Metas
+- Faixas de premiação
+- Apurações mensais
+
+Registrar:
+
+- Usuário
+- Data e hora
+- Tipo da alteração
+- Valor anterior
+- Valor novo
+
+Disponibilizar visualização em Configurações > Auditoria de Metas.
+
+Objetivo:
+
+Rastreabilidade administrativa.
+
+Não é necessário implementar um sistema complexo de diff nesta etapa.
+
+──────────────────────────────  
+4. SIMULADOR DE PREMIAÇÃO  
+──────────────────────────────
+
+Adicionar em Configurações > Metas & Premiações.
+
+Permitir informar:
+
+- Mês/Ano
+- Quantidade de contratos
+
+O simulador deve mostrar:
+
+- Faixa atingida
+- Valor por contrato
+- Valor total da premiação
+- Valor de cada parcela
+- Comparativo entre as faixas configuradas
+
+Importante:
+
+O simulador não grava informações.
+
+É apenas uma prévia administrativa.
+
+──────────────────────────────  
+5. VALIDAÇÕES DAS FAIXAS  
+──────────────────────────────
+
+Adicionar validações no editor de faixas.
+
+Não permitir:
+
+- Ordem duplicada
+- Quantidade mínima duplicada
+- Quantidade mínima menor que a faixa anterior
+- Valores negativos
+- Nome vazio
+
+Exibir erros diretamente nos campos.
+
+Bloquear salvamento enquanto existirem inconsistências.
+
+Adicionar validações equivalentes também no banco.
+
+──────────────────────────────  
+6. REABRIR APURAÇÃO DO MÊS  
+──────────────────────────────
+
+Substituir qualquer conceito de "desfazer meta" por "Reabrir Apuração".
+
+Objetivo:
+
+Permitir correções administrativas sem perder histórico.
+
+Funcionamento:
+
+- Os contratos continuam pertencendo ao mês original.
+- Os contratos continuam contando para aquele mês.
+- O mês volta para estado "em apuração".
+- As faixas podem ser alteradas novamente.
+- A apuração é recalculada.
+
+Importante:
+
+- Parcelas já liberadas não devem ser recalculadas.
+- Parcelas pendentes podem ser recalculadas conforme as novas regras.
+- Registrar a ação na auditoria.
+
+──────────────────────────────  
+7. VERIFICAÇÃO DE CONSISTÊNCIA  
+──────────────────────────────
+
+Verificar se o progresso atual da meta está utilizando exclusivamente a nova estrutura de faixas e apuração.
+
+Confirmar que:
+
+- Quantidade de contratos do mês
+- Faixa atingida
+- Valor por contrato
+- Premiações pendentes
+
+estão sendo recalculados corretamente após alterações nas faixas enquanto a apuração estiver aberta.
+
+Objetivo final:
+
+## Melhorar gestão, rastreabilidade e visualização das metas e premiações sem alterar a lógica financeira já implementada.

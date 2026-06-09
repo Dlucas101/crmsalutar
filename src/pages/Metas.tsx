@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Trophy, Target, TrendingUp, Users, Settings, DollarSign, BarChart3 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { ContratosPorFaixaBlock } from "@/components/metas/ContratosPorFaixaBlock";
+import { ParcelasMesBlock } from "@/components/metas/ParcelasMesBlock";
 
 interface Meta {
   id: string;
@@ -383,6 +385,12 @@ export default function Metas() {
           )}
         </>
       )}
+
+      {/* Contratos & parcelas do mês */}
+      <ContratosPorFaixaBlock mes={selectedMonth} ano={selectedYear} />
+      <ParcelasMesBlock mes={selectedMonth} ano={selectedYear} />
+
+
 
       {/* Goals History Chart */}
       {history.length > 0 && (

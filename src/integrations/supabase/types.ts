@@ -343,6 +343,48 @@ export type Database = {
           },
         ]
       }
+      meta_audit_log: {
+        Row: {
+          action: string
+          after: Json | null
+          ano: number | null
+          before: Json | null
+          changes: Json | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          mes: number | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          after?: Json | null
+          ano?: number | null
+          before?: Json | null
+          changes?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          mes?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          after?: Json | null
+          ano?: number | null
+          before?: Json | null
+          changes?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          mes?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       meta_tiers: {
         Row: {
           created_at: string
@@ -889,6 +931,7 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_gestor: { Args: { _user_id: string }; Returns: boolean }
+      jsonb_diff: { Args: { _new: Json; _old: Json }; Returns: Json }
       recalc_premiacao: { Args: { _premiacao_id: string }; Returns: undefined }
       record_trigger_audit: {
         Args: {
@@ -908,6 +951,10 @@ export type Database = {
         Returns: undefined
       }
       refresh_apuracao_aberta: {
+        Args: { _ano: number; _mes: number }
+        Returns: undefined
+      }
+      reopen_apuracao: {
         Args: { _ano: number; _mes: number }
         Returns: undefined
       }
