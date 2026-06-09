@@ -185,12 +185,12 @@ export default function Dashboard() {
   const activities = data?.activities ?? [];
 
   // META — sempre baseada em won_at do mês corrente.
-  const meta = data?.meta
+  const meta = data?.meta && data.meta.quantidade_meta > 0
     ? (() => {
         const quantidadeMeta = data.meta.quantidade_meta;
         const fechadosMes = stats.leadsWonMonth;
         const faltam = Math.max(0, quantidadeMeta - fechadosMes);
-        const percentual = quantidadeMeta > 0 ? Math.min(100, (fechadosMes / quantidadeMeta) * 100) : 0;
+        const percentual = Math.min(100, (fechadosMes / quantidadeMeta) * 100);
         return { quantidadeMeta, fechadosMes, faltam, percentual, atingida: fechadosMes >= quantidadeMeta };
       })()
     : null;
