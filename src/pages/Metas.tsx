@@ -102,6 +102,10 @@ export default function Metas() {
   const fetchHistory = async () => {
     const entries: HistoryEntry[] = [];
     const { data: allMetas } = await supabase.from("metas").select("*").order("ano", { ascending: true }).order("mes", { ascending: true });
+    const metaIds = (allMetas || []).map((m: any) => m.id);
+    const { data: allTiers } = metaIds.length
+      ? await supabase.from("meta_tiers").select("meta_id, quantidade_minima").in("meta_id", metaIds)
+      : { data: [] as any[] };
     const { data: allProfiles } = await supabase.from("profiles").select("id, participa_comissao");
     const participatingIds = new Set((allProfiles || []).filter((p: any) => p.participa_comissao !== false).map((p) => p.id));
     const { data: allLeads } = await supabase.from("leads").select("responsible_id, won_at, status").eq("status", "fechado_ganho");
@@ -111,7 +115,9 @@ export default function Metas() {
       const m = d.getMonth() + 1;
       const y = d.getFullYear();
       const metaForMonth = (allMetas || []).find((mt: any) => mt.mes === m && mt.ano === y);
-      const metaQtd = metaForMonth ? (metaForMonth as any).quantidade_meta : 0;
+      const monthTiers = metaForMonth ? (allTiers || []).filter((t: any) => t.meta_id === metaForMonth.id).sort((a: any, b: any) => a.quantidade_minima - b.quantidade_minima) : [];
+      const baseT = monthTiers.find((t: any) => t.quantidade_minima > 0) || monthTiers[0];
+      const metaQtd = baseT ? baseT.quantidade_minima : (metaForMonth ? (metaForMonth as any).quantidade_meta : 0);
 
       const startDate = new Date(y, m - 1, 1);
       const endDate = new Date(y, m, 0, 23, 59, 59);
