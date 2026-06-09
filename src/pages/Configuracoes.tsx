@@ -2,8 +2,9 @@ import { Navigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Settings, Trophy, DollarSign, Zap, Cog } from "lucide-react";
+import { Settings, Trophy, DollarSign, Zap, Cog, History } from "lucide-react";
 import { MetasPremiacaoTab } from "@/components/configuracoes/MetasPremiacaoTab";
+import { AuditoriaMetasTab } from "@/components/configuracoes/AuditoriaMetasTab";
 
 export default function Configuracoes() {
   const { role, loading } = useAuth();
@@ -35,6 +36,9 @@ export default function Configuracoes() {
           <TabsTrigger value="metas-premiacao" className="gap-2">
             <Trophy className="h-4 w-4" /> Metas & Premiação
           </TabsTrigger>
+          <TabsTrigger value="auditoria-metas" className="gap-2">
+            <History className="h-4 w-4" /> Auditoria de Metas
+          </TabsTrigger>
           <TabsTrigger value="comissao" className="gap-2">
             <DollarSign className="h-4 w-4" /> Comissão
           </TabsTrigger>
@@ -45,6 +49,10 @@ export default function Configuracoes() {
             <Cog className="h-4 w-4" /> Geral
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="auditoria-metas" className="mt-4">
+          <AuditoriaMetasTab />
+        </TabsContent>
 
         <TabsContent value="metas-premiacao" className="mt-4">
           <MetasPremiacaoTab isAdmin={isAdmin} />
