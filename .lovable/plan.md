@@ -1,137 +1,96 @@
+# Plano: Nova regra de Metas e Premiação
 
-## Problema atual
+## Objetivo
 
-Hoje os temas só trocam variáveis HSL no `:root`. As classes utilitárias (`.neon-glow`, `.neon-border`, `.glass-panel`, `.gradient-accent`) e várias páginas usam o **mesmo** layout neon como base, então apenas o Sunset (que tem overrides agressivos) muda de verdade. Componentes ainda têm valores fixos como `bg-card/60 backdrop-blur`, `bg-gradient-to-r from-yellow-400`, `neon-glow` direto no JSX, etc.
+Trocar a lógica atual (bônus = quantidade de leads ganhos × valor fixo da meta, pago "de uma vez") por uma premiação **por contrato**, com **faixas configuráveis por mês** e **liberação parcelada em 3 vezes** atrelada ao pagamento das 3 primeiras mensalidades. A comissão atual `(valor da mensalidade − custo) / 2` continua existindo em paralelo (somando).
 
-## Estratégia
+## Modelo de dados (novas tabelas)
 
-Tratar cada tema como uma **skin completa**, não uma variação de cores. Para isso vou:
+### `meta_tiers` — faixas configuráveis por mês
+- `meta_id` (FK → `metas`)
+- `ordem` (1, 2, 3…) — ordem da menor para a maior
+- `nome` (ex.: "Base", "Meta", "Super Meta")
+- `quantidade_minima` (int) — nº de contratos do mês para atingir essa faixa
+- `valor_por_contrato` (numeric)
+- Único por (`meta_id`, `ordem`)
 
-1. **Centralizar tudo em tokens por tema** (incluindo coisas que hoje são fixas: raio, sombras, blur, gradientes, fontes, peso de borda).
-2. **Reescrever as utilitárias** (`.neon-glow`, `.neon-border`, `.glass-panel`, `.gradient-accent`, `.chip-*`) para apenas **consumir tokens** — sem `if [data-theme=...]` espalhado.
-3. **Limpar valores fixos no JSX** das páginas/sidebars/topbar e trocar por classes/utilitárias que respondem ao tema.
-4. Redesenhar 5 identidades distintas.
+Faixa "Base" = `quantidade_minima = 0`. Admin pode criar quantas faixas quiser.
 
-## Identidades visuais (o "DNA" de cada tema)
+### `meta_apuracao` — fechamento do mês (snapshot)
+- `mes`, `ano` (único)
+- `fechada_em` (timestamp; null = aberta)
+- `faixa_atingida_id` (FK → `meta_tiers`)
+- `valor_por_contrato_congelado` (numeric)
+- `total_contratos` (int)
 
-### 1. Neon Dark (atual, refinado)
-- Atmosfera: cyberpunk / produto SaaS futurista.
-- Fundo: gradiente escuro azul-violeta + leve grain.
-- Superfícies: glass com blur 12px, borda ciano translúcida.
-- Tipografia: Inter, tracking levemente positivo em títulos.
-- Botões/headings: glow ciano + acento magenta.
-- Raio: 0.75rem. Sombra: glow neon.
+Enquanto `fechada_em IS NULL`, a faixa é recalculada em tempo real. Um job/edge function diária fecha automaticamente o mês anterior no dia 1 de cada mês (cron via `pg_cron` ou edge function agendada).
 
-### 2. Light (Clean Professional) — **sem nenhum vestígio neon**
-- Atmosfera: Notion / Linear claro.
-- Fundo: branco off-white sólido (sem gradientes radiais, sem blur).
-- Superfícies: branco puro, borda 1px cinza, sombra sutil em camadas.
-- Tipografia: Inter, peso 500 em títulos, sem letter-spacing.
-- Botões: sólidos, hover com darken simples.
-- Sidebar: cinza claríssimo, ícones outline.
-- Raio: 0.5rem. Sombra: `0 1px 2px / 0 1px 3px`.
-- **Remover** glow, gradientes coloridos, glass, neon-border (vira borda sólida).
+### `premiacoes` — premiação por contrato
+- `client_id` (FK, único) — 1 premiação por contrato
+- `responsavel_id` (FK → profiles) — pode mudar em transferência
+- `mes_referencia`, `ano_referencia` — mês de fechamento do contrato (`won_at`)
+- `valor_total` (numeric) — vem da faixa congelada × 1 contrato
+- `status` ('ativa' | 'cancelada')
 
-### 3. Liquid Glass (Apple-inspired)
-- Atmosfera: iOS / visionOS.
-- Fundo: gradientes radiais pastéis (azul, lilás, ciano) com `background-attachment: fixed`.
-- Superfícies: vidro fosco intenso (`backdrop-filter: blur(24px) saturate(180%)`), borda branca translúcida, highlight interno.
-- Tipografia: SF Pro / -apple-system, tracking -0.015em, peso 600 em títulos.
-- Botões: gradiente azul→roxo, raio 14px, sombra colorida suave.
-- Inputs/cards arredondados generosos (1.1rem).
-- Sidebar também translúcida sobre o fundo pastel.
+### `premiacao_parcelas` — 3 parcelas por premiação
+- `premiacao_id` (FK)
+- `numero` (1, 2, 3)
+- `valor` (numeric) — `valor_total / 3` por padrão, editável manualmente
+- `mensalidade_id` (FK → mensalidades, nullable) — vínculo com a mensalidade que liberou
+- `status` ('pendente' | 'liberada' | 'cancelada')
+- `liberada_em` (timestamp, nullable)
+- `responsavel_id` (FK → profiles) — herda do contrato no momento da liberação
+- `ajustada_manualmente` (boolean)
 
-### 4. Midnight Glass
-- Atmosfera: Linear dark + Apple.
-- Fundo: quase preto azulado com gradientes radiais discretos.
-- Superfícies: vidro escuro (blur 18px), borda branca 8% opacidade, highlight interno sutil.
-- Tipografia: SF Pro, peso 600, tracking levemente negativo.
-- Acento: azul elétrico + violeta.
-- Sem glow forte; usa profundidade por sombra escura + highlight.
+## Triggers e automações
 
-### 5. Sunset (manter como referência)
-- Já está bem; só vou garantir consistência (sidebar, topbar, inputs, chips usando os mesmos gradientes warm).
+1. **Criação da premiação**: trigger em `clients` (após insert via `handle_lead_ganho` ou manual). Busca a faixa congelada do mês de `won_at` do lead; se o mês ainda está aberto, usa a faixa **provisoriamente** atingida e recalcula em cada mudança até o mês fechar.
+2. **Liberação de parcela**: trigger em `mensalidades` (after insert). Se `numero_mensalidade ∈ {1,2,3}`, marca a parcela correspondente como `liberada`, grava `mensalidade_id`, `liberada_em` e `responsavel_id` atual do contrato.
+3. **Cancelamento de contrato**: quando `clients.historico = true` (campo já existe) ou novo status de cancelamento → marca premiação como `cancelada` e cancela parcelas ainda `pendente`. Parcelas já `liberada` permanecem.
+4. **Transferência**: ao alterar `clients.responsavel_id`, parcelas `pendente` recebem o novo responsável; parcelas `liberada` ficam com quem recebeu.
+5. **Fechamento mensal** (edge function agendada, executa dia 1): para cada mês não-fechado anterior, calcula faixa atingida, grava `meta_apuracao` e atualiza `valor_total` de todas as premiações daquele mês para `faixa.valor_por_contrato`. Após fechado, valor não muda mais.
 
-## Arquitetura técnica
+## UI
 
-### Novos tokens (por tema, em `index.css`)
+### Página Metas (`src/pages/Metas.tsx`)
+- Editor de faixas: lista de linhas (ordem, nome, qtd mínima, valor por contrato) com adicionar/remover.
+- Indicador da faixa atual atingida no mês.
+- Botão "Fechar apuração agora" (admin) e badge "Apuração fechada em DD/MM".
+- Histórico mostra faixa final atingida por mês.
 
-Além dos tokens HSL atuais, adicionar:
+### Página Comissões (`src/pages/Comissoes.tsx`)
+- Mantém o bloco atual de comissão `(valor − custo)`.
+- Novo bloco **"Premiação por contrato"** por técnico:
+  - Lista contratos do mês com: valor total da premiação, status das 3 parcelas, valores, mensalidade vinculada.
+  - Editor inline do valor de cada parcela (admin) — marca `ajustada_manualmente`.
+  - Totais separados: "Comissão", "Premiação liberada no mês", "Premiação pendente", "Total a receber no mês".
+- Filtro por status (liberada/pendente/cancelada).
 
-```
---radius
---font-sans
---tracking-tight
---shadow-card
---shadow-elev
---shadow-glow              /* só neon/midnight usam — outros = none */
---surface-blur             /* px ou 0 */
---surface-bg               /* cor/gradiente do card */
---surface-border           /* cor da borda do card */
---surface-highlight        /* inset highlight ou none */
---gradient-primary         /* gradiente do botão primário */
---gradient-accent-text     /* gradiente para títulos destacados */
---bg-page                  /* gradiente/fundo do body */
---input-bg
---input-border
-```
+## Migração de dados existentes
 
-Cada tema define **todos** esses tokens. Light define `--surface-blur: 0`, `--shadow-glow: none`, `--gradient-accent-text: none` → automaticamente sem neon.
+Script único na migration:
+1. Para cada `meta` antiga, criar `meta_tiers`: "Meta" (`quantidade_meta`, `valor_contrato`) e, se houver, "Super Meta" (`meta_bonus_quantidade`, `meta_bonus_valor`).
+2. Para cada `client` com `lead.status = fechado_ganho`, criar `premiacao` + 3 `premiacao_parcelas` baseadas no `won_at` e na faixa do mês correspondente.
+3. Para cada `mensalidade` 1-3 já paga, marcar a parcela correspondente como `liberada`.
+4. Marcar como `fechada` todas as `meta_apuracao` de meses anteriores ao atual.
 
-### Reescrever utilitárias para consumir tokens
+Campos antigos (`metas.quantidade_meta`, `valor_contrato`, `meta_bonus_*`) ficam por compatibilidade e poderão ser removidos depois.
 
-```css
-.glass-panel {
-  background: var(--surface-bg);
-  border: 1px solid var(--surface-border);
-  box-shadow: var(--shadow-card);
-  backdrop-filter: blur(var(--surface-blur));
-  border-radius: var(--radius);
-}
-.neon-border { border: 1px solid var(--surface-border); box-shadow: var(--shadow-glow); }
-.neon-glow   { background: var(--gradient-accent-text); -webkit-background-clip: text; color: transparent; }
-                /* fallback p/ temas sem gradiente: color: hsl(var(--foreground)) */
-.gradient-accent { background: var(--gradient-primary); color: var(--primary-foreground); }
-```
+## RLS (resumo)
 
-Resultado: zero `[data-theme=…]` espalhado nas utilitárias — comportamento muda automaticamente.
-
-### Body + tipografia globais
-`body { font-family: var(--font-sans); letter-spacing: var(--tracking-tight); background: var(--bg-page); }`
-
-### Inputs/Buttons base (em `index.css`)
-Forçar `input, textarea, [role=combobox] { background: var(--input-bg); border-color: var(--input-border); border-radius: var(--radius); }` para todos os temas, eliminando overrides por tema.
-
-### Limpeza no JSX
-- `src/components/Topbar.tsx`: trocar `bg-card/50 backdrop-blur-sm` por classe `topbar` consumindo tokens.
-- `src/components/AppSidebar.tsx`: remover `neon-glow` no logo em temas claros (a utilitária já cuida), trocar `gradient-accent` se necessário (já consome token).
-- `src/pages/Dashboard.tsx`:
-  - `bg-card/60 backdrop-blur` → `glass-panel` (já consome token).
-  - `bg-gradient-to-r from-yellow-400/70 via-orange-400/70 to-red-400/70` → usar tokens semânticos (`--warning-gradient`) por tema.
-  - `neon-glow` em `<h1>` continua, mas agora a utilitária se adapta (gradient text no Sunset/Glass, cor sólida no Light, glow no Neon).
-- Auditar `rg "from-|to-|backdrop|bg-card/"` em `src/pages` e `src/components` e converter para utilitárias/tokens.
-
-### Sidebar com identidade própria por tema
-Já temos `--sidebar-*`. Vou adicionar `--sidebar-bg` (pode ser gradiente) e aplicar no componente Sidebar via classe `app-sidebar { background: var(--sidebar-bg); }`.
+- `meta_tiers`, `meta_apuracao`: leitura para `authenticated`, escrita só para `is_admin_or_gestor`.
+- `premiacoes`, `premiacao_parcelas`: admin/gestor vê tudo; técnico vê apenas onde `responsavel_id = auth.uid()`. Edição só admin/gestor.
+- GRANTs explícitos para `authenticated` e `service_role` em todas as tabelas novas.
 
 ## Entregáveis
 
-1. `src/index.css` reescrito:
-   - Bloco de tokens estendidos por tema (5 temas).
-   - Utilitárias reescritas consumindo tokens (sem `[data-theme]` interno).
-   - Estilos base de `input/button/sidebar/topbar` via tokens.
-2. `src/components/Topbar.tsx`: substituir classes fixas por utilitária `topbar-surface`.
-3. `src/components/AppSidebar.tsx`: substituir hardcodes por classe `app-sidebar-surface`.
-4. `src/pages/Dashboard.tsx`: remover `bg-card/60 backdrop-blur`, gradientes hardcoded, e padronizar com utilitárias.
-5. Varredura nas demais páginas (`Leads`, `Clientes`, `Tarefas`, `Visitas`, `Metas`, `Comissoes`, `Relatorios`, `Auditoria`, `Membros`, `Contratos`) substituindo `from-*/to-*/backdrop-*/bg-card\/\d+` por utilitárias temáticas. Sem mudar lógica.
-6. QA visual: trocar entre os 5 temas e validar Dashboard, Sidebar, Topbar, um formulário (Leads) e uma tabela (Tarefas).
+1. Migration: novas tabelas + triggers + funções + GRANTs + RLS + migração de dados.
+2. Edge function `close-monthly-apuracao` agendada (cron diário).
+3. `src/pages/Metas.tsx`: editor de faixas + fechamento.
+4. `src/pages/Comissoes.tsx`: novo bloco de premiação por contrato com edição de parcelas.
+5. Atualização de `mem://funcionalidades/metas` e `mem://funcionalidades/comissoes`.
 
-## Sugestões / pontos a confirmar
+## Pontos em aberto (decidir durante a build se não responder agora)
 
-1. **Quantidade de temas**: 5 já é bastante. Sugiro **consolidar** removendo `Liquid Glass` **ou** `Midnight Glass` (são primos próximos — um claro e um escuro do mesmo conceito glass). Mantenho ambos se preferir.
-2. **Tipografia premium**: para Liquid/Midnight Glass posso carregar **Inter Display** via Google Fonts (peso variável) — fica mais perto do SF Pro em quem não está em macOS. Confirma se posso adicionar a fonte.
-3. **Acessibilidade**: o tema Sunset atual tem contraste apertado em texto secundário. Vou subir `--muted-foreground` para passar WCAG AA. OK?
-4. **Persistência por usuário**: hoje o tema fica em `localStorage`. Posso salvar no perfil (Supabase) para sincronizar entre dispositivos. Quer incluir agora?
-5. **Modo "auto"**: adicionar opção que segue `prefers-color-scheme` (Light de dia / Neon Dark à noite)?
-
-Posso seguir já com a refatoração assumindo: manter os 5 temas, adicionar Inter Display, corrigir contraste do Sunset, **sem** persistência em DB e **sem** modo auto — se você não responder essas perguntas. Caso queira diferente, me avise antes de eu começar.
+- **Cancelamento de contrato**: hoje só existe `clients.historico`. Posso usar esse flag como gatilho de cancelamento ou prefere um campo novo `status_contrato` ('ativo'|'cancelado')?
+- **Edge function agendada**: ok usar `pg_cron` da Lovable Cloud rodando uma SQL function diária às 00:05? (mais simples que edge function externa).

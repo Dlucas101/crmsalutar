@@ -299,6 +299,91 @@ export type Database = {
           },
         ]
       }
+      meta_apuracao: {
+        Row: {
+          ano: number
+          created_at: string
+          faixa_atingida_id: string | null
+          fechada_em: string | null
+          id: string
+          mes: number
+          total_contratos: number
+          updated_at: string
+          valor_por_contrato_congelado: number
+        }
+        Insert: {
+          ano: number
+          created_at?: string
+          faixa_atingida_id?: string | null
+          fechada_em?: string | null
+          id?: string
+          mes: number
+          total_contratos?: number
+          updated_at?: string
+          valor_por_contrato_congelado?: number
+        }
+        Update: {
+          ano?: number
+          created_at?: string
+          faixa_atingida_id?: string | null
+          fechada_em?: string | null
+          id?: string
+          mes?: number
+          total_contratos?: number
+          updated_at?: string
+          valor_por_contrato_congelado?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_apuracao_faixa_atingida_id_fkey"
+            columns: ["faixa_atingida_id"]
+            isOneToOne: false
+            referencedRelation: "meta_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_tiers: {
+        Row: {
+          created_at: string
+          id: string
+          meta_id: string
+          nome: string
+          ordem: number
+          quantidade_minima: number
+          updated_at: string
+          valor_por_contrato: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          meta_id: string
+          nome: string
+          ordem: number
+          quantidade_minima?: number
+          updated_at?: string
+          valor_por_contrato?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          meta_id?: string
+          nome?: string
+          ordem?: number
+          quantidade_minima?: number
+          updated_at?: string
+          valor_por_contrato?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_tiers_meta_id_fkey"
+            columns: ["meta_id"]
+            isOneToOne: false
+            referencedRelation: "metas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       metas: {
         Row: {
           ano: number
@@ -370,6 +455,121 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      premiacao_parcelas: {
+        Row: {
+          ajustada_manualmente: boolean
+          created_at: string
+          id: string
+          liberada_em: string | null
+          mensalidade_id: string | null
+          numero: number
+          premiacao_id: string
+          responsavel_id: string | null
+          status: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          ajustada_manualmente?: boolean
+          created_at?: string
+          id?: string
+          liberada_em?: string | null
+          mensalidade_id?: string | null
+          numero: number
+          premiacao_id: string
+          responsavel_id?: string | null
+          status?: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          ajustada_manualmente?: boolean
+          created_at?: string
+          id?: string
+          liberada_em?: string | null
+          mensalidade_id?: string | null
+          numero?: number
+          premiacao_id?: string
+          responsavel_id?: string | null
+          status?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "premiacao_parcelas_mensalidade_id_fkey"
+            columns: ["mensalidade_id"]
+            isOneToOne: false
+            referencedRelation: "mensalidades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "premiacao_parcelas_premiacao_id_fkey"
+            columns: ["premiacao_id"]
+            isOneToOne: false
+            referencedRelation: "premiacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "premiacao_parcelas_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      premiacoes: {
+        Row: {
+          ano_referencia: number
+          client_id: string
+          created_at: string
+          id: string
+          mes_referencia: number
+          responsavel_id: string | null
+          status: string
+          updated_at: string
+          valor_total: number
+        }
+        Insert: {
+          ano_referencia: number
+          client_id: string
+          created_at?: string
+          id?: string
+          mes_referencia: number
+          responsavel_id?: string | null
+          status?: string
+          updated_at?: string
+          valor_total?: number
+        }
+        Update: {
+          ano_referencia?: number
+          client_id?: string
+          created_at?: string
+          id?: string
+          mes_referencia?: number
+          responsavel_id?: string | null
+          status?: string
+          updated_at?: string
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "premiacoes_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "premiacoes_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -659,9 +859,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calc_faixa_atingida: {
+        Args: { _ano: number; _mes: number }
+        Returns: {
+          tier_id: string
+          total_contratos: number
+          valor_por_contrato: number
+        }[]
+      }
+      close_apuracao: {
+        Args: { _ano: number; _mes: number }
+        Returns: undefined
+      }
+      ensure_premiacao: { Args: { _client_id: string }; Returns: undefined }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      get_valor_premiacao_vigente: {
+        Args: { _ano: number; _mes: number }
+        Returns: number
       }
       has_role: {
         Args: {
@@ -671,6 +888,7 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_gestor: { Args: { _user_id: string }; Returns: boolean }
+      recalc_premiacao: { Args: { _premiacao_id: string }; Returns: undefined }
       record_trigger_audit: {
         Args: {
           _data?: Json
@@ -686,6 +904,10 @@ export type Database = {
           _trigger_name: string
           _user_id: string
         }
+        Returns: undefined
+      }
+      refresh_apuracao_aberta: {
+        Args: { _ano: number; _mes: number }
         Returns: undefined
       }
     }
