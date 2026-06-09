@@ -130,7 +130,17 @@ async function fetchDashboardStats(preset: DateRangePreset) {
       faturamentoRange,
       faturamentoPrev,
     },
-    meta: metaRes.data ? { quantidade_meta: metaRes.data.quantidade_meta || 0 } : null,
+    meta: await (async () => {
+      if (!metaRes.data?.id) return metaRes.data ? { quantidade_meta: metaRes.data.quantidade_meta || 0 } : null;
+      const { data: tiersData } = await supabase
+        .from("meta_tiers")
+        .select("quantidade_minima")
+        .eq("meta_id", metaRes.data.id)
+        .order("quantidade_minima", { ascending: true });
+      const baseTier = (tiersData || []).find((t: any) => t.quantidade_minima > 0) || (tiersData || [])[0];
+      const qtd = baseTier?.quantidade_minima ?? (metaRes.data.quantidade_meta || 0);
+      return { quantidade_meta: qtd };
+    })(),
     monthlySeries: months,
     activities: activitiesRes.data || [],
   };
