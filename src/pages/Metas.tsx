@@ -177,65 +177,16 @@ export default function Metas() {
             </SelectContent>
           </Select>
           {isAdmin && (
-            <Dialog open={openConfig} onOpenChange={setOpenConfig}>
-              <DialogTrigger asChild>
-                <Button variant="outline"><Settings className="h-4 w-4 mr-2" /> Configurar Meta</Button>
-              </DialogTrigger>
-              <DialogContent className="glass-panel border-border max-w-sm">
-                <DialogHeader>
-                  <DialogTitle className="neon-glow">Meta de {MONTHS[selectedMonth - 1]} {selectedYear}</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleSaveMeta} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Quantidade da Meta (contratos)</Label>
-                    <Input type="number" min="1" value={formQtd} onChange={(e) => setFormQtd(e.target.value)} placeholder="Ex: 8" className="bg-secondary/50" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Valor por Contrato (R$)</Label>
-                    <Input type="number" min="0" step="0.01" value={formValor} onChange={(e) => setFormValor(e.target.value)} placeholder="Ex: 150.00" className="bg-secondary/50" required />
-                  </div>
-
-                  <div className="border-t border-border pt-4 mt-4">
-                    <p className="text-sm font-semibold text-foreground mb-3">🎯 Super Meta (Bônus)</p>
-                    <div className="space-y-2">
-                      <Label>Quantidade para Super Meta (contratos)</Label>
-                      <Input type="number" min="0" value={formBonusQtd} onChange={(e) => setFormBonusQtd(e.target.value)} placeholder="Ex: 10 (deixe 0 para desativar)" className="bg-secondary/50" />
-                    </div>
-                    <div className="space-y-2 mt-2">
-                      <Label>Valor bônus por contrato (R$) — opcional</Label>
-                      <Input type="number" min="0" step="0.01" value={formBonusValor} onChange={(e) => setFormBonusValor(e.target.value)} placeholder="Ex: 50.00 (0 se não for valor)" className="bg-secondary/50" />
-                    </div>
-                    <div className="space-y-2 mt-2">
-                      <Label>Prêmio / Descrição — opcional</Label>
-                      <Input value={formBonusDesc} onChange={(e) => setFormBonusDesc(e.target.value)} placeholder="Ex: Jantar no restaurante X" className="bg-secondary/50" />
-                    </div>
-                  </div>
-
-                  <Button type="submit" className="w-full gradient-accent text-primary-foreground font-semibold">Salvar Meta</Button>
-                </form>
-              </DialogContent>
-            </Dialog>
+            <Button variant="outline" asChild>
+              <Link to="/configuracoes?tab=metas-premiacao">
+                <Settings className="h-4 w-4 mr-2" /> Configurar faixas
+              </Link>
+            </Button>
           )}
         </div>
       </div>
 
-      <MetaTiersEditor
-        metaId={meta?.id || null}
-        mes={selectedMonth}
-        ano={selectedYear}
-        isAdmin={isAdmin}
-        onCreateMeta={async () => {
-          const { data, error } = await supabase
-            .from("metas")
-            .insert({ mes: selectedMonth, ano: selectedYear, quantidade_meta: 0, valor_contrato: 0 })
-            .select("id")
-            .single();
-          if (error) { toast.error("Erro ao criar meta"); return null; }
-          await fetchData();
-          return data?.id ?? null;
-        }}
-        onChanged={() => { fetchData(); fetchHistory(); }}
-      />
+
 
 
 
