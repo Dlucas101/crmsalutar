@@ -71,6 +71,17 @@ export default function Metas() {
       .maybeSingle();
     setMeta(metaData as Meta | null);
 
+    if (metaData?.id) {
+      const { data: tiersData } = await supabase
+        .from("meta_tiers")
+        .select("id, nome, quantidade_minima, valor_por_contrato, ordem")
+        .eq("meta_id", metaData.id)
+        .order("quantidade_minima", { ascending: true });
+      setTiers(tiersData || []);
+    } else {
+      setTiers([]);
+    }
+
     const { data: allMembers } = await supabase.from("profiles").select("id, nome, cor, participa_comissao");
     const participatingMembers = (allMembers || []).filter((m: any) => m.participa_comissao !== false);
     setMembers(participatingMembers);
