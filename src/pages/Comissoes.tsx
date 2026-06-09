@@ -505,6 +505,15 @@ export default function Comissoes() {
           ))}
         </div>
       )}
+
+      <PremiacoesBlock
+        mes={selectedMonth}
+        ano={selectedYear}
+        isAdmin={isAdmin}
+        currentUserId={user?.id ?? null}
+        filterTecnico={selectedTecnico}
+      />
     </div>
+
   );
 }
