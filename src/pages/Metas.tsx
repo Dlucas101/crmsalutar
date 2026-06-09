@@ -11,6 +11,7 @@ import { Trophy, Target, TrendingUp, Users, Settings, DollarSign, BarChart3 } fr
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { MetaTiersEditor } from "@/components/metas/MetaTiersEditor";
 
 interface Meta {
   id: string;
@@ -280,6 +281,26 @@ export default function Metas() {
           )}
         </div>
       </div>
+
+      <MetaTiersEditor
+        metaId={meta?.id || null}
+        mes={selectedMonth}
+        ano={selectedYear}
+        isAdmin={isAdmin}
+        onCreateMeta={async () => {
+          const { data, error } = await supabase
+            .from("metas")
+            .insert({ mes: selectedMonth, ano: selectedYear, quantidade_meta: 0, valor_contrato: 0 })
+            .select("id")
+            .single();
+          if (error) { toast.error("Erro ao criar meta"); return null; }
+          await fetchData();
+          return data?.id ?? null;
+        }}
+        onChanged={() => { fetchData(); fetchHistory(); }}
+      />
+
+
 
       {!meta ? (
         <Card className="glass-panel neon-border">
