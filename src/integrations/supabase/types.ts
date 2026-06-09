@@ -871,6 +871,7 @@ export type Database = {
         Args: { _ano: number; _mes: number }
         Returns: undefined
       }
+      close_past_apuracoes: { Args: never; Returns: undefined }
       ensure_premiacao: { Args: { _client_id: string }; Returns: undefined }
       get_user_role: {
         Args: { _user_id: string }
