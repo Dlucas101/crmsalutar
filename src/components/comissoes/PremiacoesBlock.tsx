@@ -88,7 +88,7 @@ export function PremiacoesBlock({ mes, ano, isAdmin, currentUserId, filterTecnic
         liberada_em: p.liberada_em,
         ajustada_manualmente: p.ajustada_manualmente,
         responsavel_id: respId,
-        responsavel_nome: profMap.get(respId) || "—",
+        responsavel_nome: (profMap.get(respId) as string) || "—",
         client_id: prem.client_id,
         client_nome: cliMap.get(prem.client_id) || "—",
         premiacao_status: prem.status,
