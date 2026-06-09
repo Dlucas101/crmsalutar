@@ -57,6 +57,7 @@ export default function Metas() {
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [meta, setMeta] = useState<Meta | null>(null);
+  const [tiers, setTiers] = useState<{ id: string; nome: string; quantidade_minima: number; valor_por_contrato: number; ordem: number }[]>([]);
   const [members, setMembers] = useState<Profile[]>([]);
   const [leadsGanhos, setLeadsGanhos] = useState<LeadGanho[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
