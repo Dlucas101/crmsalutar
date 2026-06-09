@@ -57,12 +57,7 @@ export default function Metas() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [members, setMembers] = useState<Profile[]>([]);
   const [leadsGanhos, setLeadsGanhos] = useState<LeadGanho[]>([]);
-  const [openConfig, setOpenConfig] = useState(false);
-  const [formQtd, setFormQtd] = useState("");
-  const [formValor, setFormValor] = useState("");
-  const [formBonusQtd, setFormBonusQtd] = useState("");
-  const [formBonusValor, setFormBonusValor] = useState("");
-  const [formBonusDesc, setFormBonusDesc] = useState("");
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   const fetchData = async () => {
